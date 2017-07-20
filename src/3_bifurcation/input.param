@@ -167,7 +167,7 @@ BClabel = 'MIX MIX  MIX  MIX  MIX  MIX'
 % BC values
 BCvalue = '0.0 0.0  0.0  0.0  0.0  0.0'
 % Coefficient for MIX condition
-BETA = 2.22E-16;
+BETA = 2.22E-6;
 % Outside interstitial pressure for MIX condition
 P0 = -1;
 %===================================
