@@ -1389,7 +1389,7 @@ while(RK && iteration < max_iteration)
 	//De-allocate memory
 	gmm::clear(auxOSt);
 	gmm::clear(auxOSv);
-
+	return true;
 }
 
 ////////// Export results into vtk files ///////////////////////////////
