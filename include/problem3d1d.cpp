@@ -86,8 +86,12 @@ problem3d1d::import_data(void)
 	cout << "Importing descriptors for tissue and vessel problems ..." << endl;
 	#endif
 	descr.import(PARAM);
+	if(PARAM.int_value("IMPORT_CURVE"))
+		c_descr.import(PARAM);
 	#ifdef M3D1D_VERBOSE_
 	cout << descr;
+	if(PARAM.int_value("IMPORT_CURVE"))
+		cout << c_descr;
 	#endif
 }
 
@@ -120,7 +124,28 @@ problem3d1d::build_mesh(void)
 	#endif
 	std::ifstream ifs(descr.MESH_FILEV);
 	GMM_ASSERT1(ifs.good(), "impossible to read from file " << descr.MESH_FILEV);
-	import_pts_file(ifs, meshv, BCv, nb_vertices, descr.MESH_TYPEV);
+
+	bool Import=PARAM.int_value("IMPORT_CURVE");
+	bool Curve=PARAM.int_value("CURVE_PROBLEM");
+
+	if(Curve && !Import){
+		import_pts_file(ifs, meshv, BCv, nb_vertices, descr.MESH_TYPEV, param);
+	}
+	else if(Import && !Curve){
+		GMM_ASSERT1(0,"If you want to import the curvature, you need to enable CURVE_PROBLEM=1");
+	}
+	else if(Import && Curve){
+		std::ifstream ifc(PARAM.string_value("CURVE_FILE","curvature file location"));
+		GMM_ASSERT1(ifc.good(), "impossible to read from file " << PARAM.string_value("CURVE_FILE","curvature file location"));
+		
+		import_pts_file(ifs,ifc, meshv, BCv, nb_vertices, descr.MESH_TYPEV, param);
+
+		ifc.close();
+	} else{
+		import_pts_file(ifs, meshv, BCv, nb_vertices, descr.MESH_TYPEV);
+	}
+
+
 	nb_branches = nb_vertices.size();
 	ifs.close();
 }
@@ -189,7 +214,7 @@ problem3d1d::build_param(void)
 	#ifdef M3D1D_VERBOSE_
 	cout << "Building parameters for tissue and vessel problems ..." << endl;
 	#endif
-	param.build(PARAM, mf_coeft, mf_coefv);
+	param.build(PARAM, mf_coeft, mf_coefv,mf_coefvi);
 	#ifdef M3D1D_VERBOSE_
 	cout << param ;
 	#endif
@@ -610,7 +635,7 @@ problem3d1d::assembly_mat(void)
 	gmm::add(Dtt,
 			  gmm::sub_matrix(AM, 
 					gmm::sub_interval(dof.Ut(), dof.Pt()),
-                                        gmm::sub_interval(0, dof.Ut())));
+                    gmm::sub_interval(0, dof.Ut())));
         //L2
 	//cout << param.Q_LF(0) << endl;
         scalar_type lf_coef=param.Q_LF(0);//scalar then uniform untill now
@@ -621,19 +646,7 @@ problem3d1d::assembly_mat(void)
                           gmm::sub_matrix(AM,
                                         gmm::sub_interval(dof.Ut(), dof.Pt()),
                                         gmm::sub_interval(dof.Ut(), dof.Pt())));
-       
-
-	#ifdef M3D1D_VERBOSE_
-	cout << "  Assembling the tangent versor ..." << endl;
-	#endif
-	vector_type lambdax; // tangent versor: x component
-	vector_type lambday; // tangent versor: y component
-	vector_type lambdaz; // tangent versor: z component
-	std::ifstream ifs(descr.MESH_FILEV);
-	GMM_ASSERT1(ifs.good(), "impossible to read from file " << descr.MESH_FILEV);
-	asm_tangent_versor(ifs, lambdax, lambday, lambdaz);
-	ifs.close();
-
+    
 	#ifdef M3D1D_VERBOSE_
 	cout << "  Assembling Mvv and Dvv ..." << endl;
 	#endif
@@ -644,22 +657,19 @@ problem3d1d::assembly_mat(void)
 		if(i>0) shift += mf_Uvi[i-1].nb_dof();
 		scalar_type Ri = param.R(mimv, i);
 		scalar_type kvi = param.kv(mimv, i);
-		// Coefficient \pi^2*Ri'^4/\kappa_v
-		vector_type ci(mf_coefvi[i].nb_dof(), pi*pi*Ri*Ri*Ri*Ri/kvi);
+		// Coefficient  \pi^2*Ri'^4/\kappa_v *(1+Ci^2*Ri^2) //Adaptation to the curve model
+		vector_type ci(mf_coefvi[i].nb_dof());
+		for(size_type j=0; j<mf_coefvi[i].nb_dof(); ++j){
+			ci[j]=pi*pi*Ri*Ri*Ri*Ri/kvi*(1+param.Curv(i,j)*param.Curv(i,j)*Ri*Ri);
+		}
 		// Allocate temp local matrices
 		sparse_matrix_type Mvvi(mf_Uvi[i].nb_dof(), mf_Uvi[i].nb_dof());
 		sparse_matrix_type Dvvi(dof.Pv(), mf_Uvi[i].nb_dof());
-		// Allocate temp local tangent versor
-		vector_type lambdax_K, lambday_K, lambdaz_K;
-		for(size_type j=0; j<mf_coefvi[i].nb_dof(); j++){
-			lambdax_K.emplace_back(lambdax[i]);
-			lambday_K.emplace_back(lambday[i]);
-			lambdaz_K.emplace_back(lambdaz[i]);
-		}
+
 		// Build Mvvi and Dvvi
 		asm_network_poiseuille(Mvvi, Dvvi, 
 			mimv, mf_Uvi[i], mf_Pv, mf_coefvi[i],
-			ci, lambdax_K, lambday_K, lambdaz_K, meshv.region(i));
+			ci, param.lambdax(i), param.labday(i), param.lambdaz(i), meshv.region(i));
 		gmm::scale(Dvvi, pi*Ri*Ri);
 		// Copy Mvvi and Dvvi
 		gmm::add(Mvvi, 
