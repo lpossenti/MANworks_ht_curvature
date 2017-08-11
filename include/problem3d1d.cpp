@@ -669,7 +669,7 @@ problem3d1d::assembly_mat(void)
 		// Build Mvvi and Dvvi
 		asm_network_poiseuille(Mvvi, Dvvi, 
 			mimv, mf_Uvi[i], mf_Pv, mf_coefvi[i],
-			ci, param.lambdax(i), param.labday(i), param.lambdaz(i), meshv.region(i));
+			ci, param.lambdax(i), param.lambday(i), param.lambdaz(i), meshv.region(i));
 		gmm::scale(Dvvi, pi*Ri*Ri);
 		// Copy Mvvi and Dvvi
 		gmm::add(Mvvi, 

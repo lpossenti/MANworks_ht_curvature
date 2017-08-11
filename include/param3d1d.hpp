@@ -48,8 +48,7 @@ struct param3d1d {
 	scalar_type k_; 
 	//! Viscosity of the blood [kg/ms]
 	scalar_type mu_v_; 	
-	//! Visc
-	osity of the interstitial fluid [kg/ms]
+	//! Viscosity of the interstitial fluid [kg/ms]
 	scalar_type mu_t_; 
 	//! Hydraulic conductivity of the capillary walls [m^2 s/kg]
 	scalar_type Lp_;
@@ -321,7 +320,7 @@ struct param3d1d {
         //! Get the lymphatic vessels permeability
         inline scalar_type Q_LF (size_type i) { return Q_LF_[i]; } const
 	//! Get the coefficient of lymphatic vessel
-	inline scalar_type QLF_a  (void) { return QLF_A_; } constS
+	inline scalar_type QLF_a  (void) { return QLF_A_; } const
 	inline scalar_type QLF_b  (void) { return QLF_B_;  } const
 	inline scalar_type QLF_c  (void) { return QLF_C_;  } const
 	inline scalar_type QLF_d  (void) { return QLF_D_;  } const
@@ -332,7 +331,6 @@ struct param3d1d {
 	//! Get the reflection coefficient
 	inline scalar_type sigma  (void) { return sigma_; } const
 	//! Get the esponent of velocity profile
-
 
 	inline scalar_type Gamma (void) { return Gamma_;} const
 	//! Get vessel tangent versor x component
@@ -350,9 +348,9 @@ struct param3d1d {
 	//! Get vessel curvature
 	vector<vector_type> & Curv (void) { return Curv_; }
 	//! Get vessel curvature for branch i
-	vector<vector_type> & Curv (size_type i) { return Curv_[i]; }
+	vector_type & Curv (size_type i) { return Curv_[i]; }
 	//! Get vessel curvature for branch i in position j
-	vector<vector_type> & Curv (size_type i, size_type j) { return Curv_[i][j]; }
+	scalar_type & Curv (size_type i, size_type j) { return Curv_[i][j]; }
 
 
 	//! Overloading of the output operator

@@ -72,7 +72,7 @@ struct c_descr3d1d {
 		}
 		else{
 			out << " MESH CURVE 1D problem          : "   << endl;
-			out << " FEM TYPE   1D curve parameters : " endl;
+			out << " FEM TYPE   1D curve parameters : "   << endl;
 		}
 		out << "--------------------------------------------------" << endl;
 
