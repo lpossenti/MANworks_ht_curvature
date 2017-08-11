@@ -34,6 +34,8 @@ struct c_descr3d1d {
 
 	std::string FEM_TYPECURVE;
 
+	bool IMPORT_CURVE;
+    /*
 	std::string FIXED_POINT_METHOD;
 
 	std::string INCREMENT_VELOCITY_TYPE;
@@ -41,6 +43,7 @@ struct c_descr3d1d {
 	scalar_type MAXITER;
 
 	scalar_type MINERROR;
+	*/
 	// Utils
 	//! File .param
 	ftool::md_param FILE_;
@@ -48,18 +51,12 @@ struct c_descr3d1d {
 	void import(ftool::md_param & fname) 
 	{
 		FILE_ = fname;
+		IMPORT_CURVE = FILE_.int_value("IMPORT_CURVE");
+		if(IMPORT_CURVE){
+			MESH_CURVE = FILE_.string_value("CURVE_FILE","Path of the mesh of the curve parameters");
+			FEM_TYPECURVE = FILE_.string_value("FEM_TYPEV_DATA","Name of Finite element on parameters");
+		}	
 
-		MESH_CURVE = FILE_.string_value("CURVE_FILE","Path of the mesh of the curve parameters");
-		FEM_TYPECURVE = FILE_.string_value("FEM_TYPEV_DATA","Name of Finite element on parameters");
-
-		if(FILE_.int_value("Newton","Bool variable which say if you want to use Newton Method")==1)
-			FIXED_POINT_METHOD="Newton Method";
-		else
-			FIXED_POINT_METHOD="Fixed Point Method";
-
-		MAXITER = FILE_.real_value("Max_iter","Maximum number of iteration of Fixed Point Method");
-
-		MINERROR = FILE_.real_value("minERR","Minimum value of increment for Convergence");
 	}
 
 	//! Overloading of the output operator
@@ -68,11 +65,15 @@ struct c_descr3d1d {
 		)
 	{ 
 		out << "---- CURVE PROBLEM DESCRIPTORS--------------------" << endl;
-		out << " MESH CURVE 1D problem          : " << descr.MESH_CURVE  << endl;
-		out << " FEM TYPE   1D curve parameters : " << descr.FEM_TYPECURVE<< endl;
-		out << " FIXED POINT Method             : " << descr.FIXED_POINT_METHOD  << endl;
-		out << " MAX number of Iterations       : " << descr.MAXITER <<endl;
-		out << " MIN increment accepted         : " << descr.MINERROR <<endl;
+		out << " MESH CURVE 1D problem          : True" << endl;
+		if(descr.IMPORT_CURVE){
+			out << " MESH CURVE 1D problem          : " << descr.MESH_CURVE  << endl;
+			out << " FEM TYPE   1D curve parameters : " << descr.FEM_TYPECURVE<< endl;
+		}
+		else{
+			out << " MESH CURVE 1D problem          : "   << endl;
+			out << " FEM TYPE   1D curve parameters : " endl;
+		}
 		out << "--------------------------------------------------" << endl;
 
 		return out;            
