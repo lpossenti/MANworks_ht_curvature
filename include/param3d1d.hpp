@@ -30,6 +30,7 @@
 
 #include <mesh1d.hpp>    // import_network_radius
 #include <utilities.hpp> // compute_radius
+#include <c_mesh1d.hpp> //rasm_curve_parameter 
 
 namespace getfem {
 
@@ -47,7 +48,8 @@ struct param3d1d {
 	scalar_type k_; 
 	//! Viscosity of the blood [kg/ms]
 	scalar_type mu_v_; 	
-	//! Viscosity of the interstitial fluid [kg/ms]
+	//! Visc
+	osity of the interstitial fluid [kg/ms]
 	scalar_type mu_t_; 
 	//! Hydraulic conductivity of the capillary walls [m^2 s/kg]
 	scalar_type Lp_;
@@ -95,11 +97,25 @@ struct param3d1d {
 	getfem::mesh_fem mf_datat_;
 	//! Finite Element Method for vessel data
 	getfem::mesh_fem mf_datav_;
+	//! Mesh tangent versor X component
+	vector<vector_type> lambdax_;
+	//! Mesh tangent versor Y component
+	vector<vector_type> lambday_;
+	//! Mesh tangent versor Z component
+	vector<vector_type> lambdaz_;	
+	//! Mesh curvature
+	vector<vector_type> Curv_;
+	/*! Order of velocity profile 
+		s=\frac{1}{\gamma} (\gamma + 2) (1+(\frac{r}{R})^{\gamma})
+		if \gamma=2 we have poiseuille profile
+	*/
+	scalar_type Gamma_;
 	// Methods
-	//! Build the arrays of dimensionless parameters
+	//! Build the arrays of Dimensionless parameters
 	void build(ftool::md_param & fname, 
 			const getfem::mesh_fem & mf_datat,
-			const getfem::mesh_fem & mf_datav
+			const getfem::mesh_fem & mf_datav,
+			const vector<getfem::mesh_fem> & mf_datavi
 			) 
 	{
 		FILE_ = fname;
@@ -107,11 +123,13 @@ struct param3d1d {
 		mf_datav_ = mf_datav;
 		size_type dof_datat = mf_datat_.nb_dof();
 		size_type dof_datav = mf_datav_.nb_dof();
+		size_type n_branch= mf_datavi.size();
 		 
 		bool IMPORT_RADIUS = FILE_.int_value("IMPORT_RADIUS");
 		bool NONDIM_PARAM  = FILE_.int_value("TEST_PARAM");
 		bool EXPORT_PARAM  = FILE_.int_value("EXPORT_PARAM");
 		bool LINEAR_LYMPHATIC_DRAINAGE = FILE_.int_value("LINEAR_LYMPHATIC_DRAINAGE");
+		bool IMPORT_CURVE = FILE_.int_value("CURVE_PROBLEM");
 
 		// Check
 		if (IMPORT_RADIUS)
@@ -136,6 +154,42 @@ struct param3d1d {
 			if (!ist) cerr << "impossible to read from file " << RFILE << endl;
 			import_network_radius(R_, ist, mf_datav_);
 		}
+
+		if(!IMPORT_CURVE){
+			#ifdef M3D1D_VERBOSE_
+			cout<<"CURVE NOT IMPORTED, THE PROBLEM IS CONSIDERED LINEAR FOR ALL BRANCHES\n\n";
+			#endif
+
+			vector_type lx_temp,ly_temp,lz_temp;
+			std::ifstream ifst(FILE_.string_value("MESH_FILEV","1D points file"));
+			GMM_ASSERT1(ifst.good(), "impossible to read from file " << FILE_.string_value("MESH_FILEV","1D points file"));
+			asm_tangent_versor(ifst, lx_temp,ly_temp,lz_temp);
+			Curv_.resize(n_branch);
+			lambdax_.resize(n_branch);
+			lambday_.resize(n_branch);
+			lambdaz_.resize(n_branch); 
+
+			for(size_type b=0;b<n_branch;++b){
+				size_type dofi=mf_datavi[b].nb_dof();
+				Curv_[b].resize(dofi); Curv_[b].clear();
+				Curv_[b].assign(dofi, 0.0);
+				
+				gmm::resize(lambdax_[b],dofi);
+				gmm::resize(lambday_[b],dofi);
+				gmm::resize(lambdaz_[b],dofi);
+				
+				lambdax_[b].assign(dofi,lx_temp[b]);
+				lambday_[b].assign(dofi,ly_temp[b]);
+				lambdaz_[b].assign(dofi,lz_temp[b]);
+				
+			}
+		} else {
+			rasm_curve_parameter(mf_datavi,Curv_,lambdax_,lambday_,lambdaz_);
+			for(size_type b=0;b<n_branch;++b)
+				gmm::scaled(Curv_[b],1.0/FILE_.real_value("d"));
+		}
+
+
 		#ifdef M3D1D_VERBOSE_
 		cout << "  Assembling dimensionless permeabilities kt, Q, kv ... "   << endl;
 		#endif
@@ -147,6 +201,7 @@ struct param3d1d {
 			pi_t_ = FILE_.real_value("pi_t_adim");
 			pi_v_ = FILE_.real_value("pi_v_adim");
 			sigma_ = FILE_.real_value("sigma");
+			Gamma_ = 2.0;
 			if(!LINEAR_LYMPHATIC_DRAINAGE)
 			{
                         QLF_A_ = FILE_.real_value("QLF_A", "Dimensionless parameter A of lymphatic drainage");
@@ -177,6 +232,7 @@ struct param3d1d {
 			pi_t_ = FILE_.real_value("Pi_t", "interstitial oncotic pressure [Pa]"); 
 			pi_v_ = FILE_.real_value("Pi_v", "fluid oncotic pressure [Pa]"); 
 			sigma_ = FILE_.real_value("sigma", "reflection coefficient [-]"); 
+			Gamma_= FILE_.real_value("Gamma", "Order of velocity profile in the vessels");
 			Lp_   = FILE_.real_value("Lp", "permeability of the vessel walls [m^2 s/kg]"); 
 			if(LINEAR_LYMPHATIC_DRAINAGE)
 			{
@@ -189,8 +245,8 @@ struct param3d1d {
 			pi_v_ = pi_v_/P_; 
 
 			for (auto r : R_){ // C++11-only!
-				kv_.emplace_back(pi/8.0/mu_v_*P_*d_/U_*r*r*r*r);
-				Q_.emplace_back(2*pi*Lp_*P_/U_*r);
+				kv_.emplace_back(pi/2.0/(Gamma_+2.0)/mu_v_*P_*d_/U_*r*r*r*r);
+				Q_.emplace_back(2.0*pi*Lp_*P_/U_*r);
 			}
 
 			// Fixed Point Method for Lymphatic System (Sigmoid)
@@ -226,6 +282,19 @@ struct param3d1d {
 
 	}
 
+	//! Saving the curved parameters during the initialisation
+	void get_curve(
+		vector<vector_type> & Curv, 
+		vector<vector_type> & lambdax, 
+		vector<vector_type> & lambday, 
+		vector<vector_type> & lambdaz
+	)
+	{
+		Curv_=Curv;
+		lambdax_=lambdax;
+		lambday_=lambday;
+		lambdaz_=lambdaz;
+	}
 
 	//! Get the radius at a given dof
 	inline scalar_type R  (size_type i) { return R_[i];  } const
@@ -252,7 +321,7 @@ struct param3d1d {
         //! Get the lymphatic vessels permeability
         inline scalar_type Q_LF (size_type i) { return Q_LF_[i]; } const
 	//! Get the coefficient of lymphatic vessel
-	inline scalar_type QLF_a  (void) { return QLF_A_; } const
+	inline scalar_type QLF_a  (void) { return QLF_A_; } constS
 	inline scalar_type QLF_b  (void) { return QLF_B_;  } const
 	inline scalar_type QLF_c  (void) { return QLF_C_;  } const
 	inline scalar_type QLF_d  (void) { return QLF_D_;  } const
@@ -262,6 +331,30 @@ struct param3d1d {
 	inline scalar_type pi_v  (void) { return pi_v_; } const
 	//! Get the reflection coefficient
 	inline scalar_type sigma  (void) { return sigma_; } const
+	//! Get the esponent of velocity profile
+
+
+	inline scalar_type Gamma (void) { return Gamma_;} const
+	//! Get vessel tangent versor x component
+	vector<vector_type> & lambdax (void) { return lambdax_; }
+	//! Get vessel tangent versor y component
+	vector<vector_type> & lambday (void) { return lambday_; }
+	//! Get vessel tangent versor z component
+	vector<vector_type> & lambdaz (void) { return lambdaz_; }
+	//! Get vessel tangent versor x component for branch i
+	vector_type & lambdax (size_type i) { return lambdax_[i]; }
+	//! Get vessel tangent versor y component for branch i
+	vector_type & lambday (size_type i) { return lambday_[i]; }
+	//! Get vessel tangent versor z component for branch i
+	vector_type & lambdaz (size_type i) { return lambdaz_[i]; }
+	//! Get vessel curvature
+	vector<vector_type> & Curv (void) { return Curv_; }
+	//! Get vessel curvature for branch i
+	vector<vector_type> & Curv (size_type i) { return Curv_[i]; }
+	//! Get vessel curvature for branch i in position j
+	vector<vector_type> & Curv (size_type i, size_type j) { return Curv_[i][j]; }
+
+
 	//! Overloading of the output operator
 	friend std::ostream & operator << (
 		std::ostream & out, const param3d1d & param
@@ -271,7 +364,8 @@ struct param3d1d {
 		out << "  R'     : "                << param.R_[0] << endl; 
 		out << "  kappat : "                << param.kt_[0] << endl; 
 		out << "  Q      : "                << param.Q_[0] << endl; 
-                out << "  kappav : "                << param.kv_[0] << endl;
+        out << "  kappav : "                << param.kv_[0] << endl;
+		out << "  Gamma  : "                << param.Gamma_ << endl; 
 		out << "--------------------------" << endl;
 
 		return out;            
