@@ -445,13 +445,7 @@ problemHT::assembly_mat(void)
 	#ifdef M3D1D_VERBOSE_
 	cout << "  Assembling the tangent versor (Hematocrit)..." << endl;
 	#endif
-	vector_type lambdax; // tangent versor: x component
-	vector_type lambday; // tangent versor: y component
-	vector_type lambdaz; // tangent versor: z component
-	std::ifstream ifs(descrHT.MESH_FILEH);
-	GMM_ASSERT1(ifs.good(), "impossible to read from file " << descrHT.MESH_FILEH);
-	asm_tangent_versor(ifs, lambdax, lambday, lambdaz);
-	ifs.close();
+
 
 	vector_type Uv( dof.Uv()); gmm::clear(Uv);
 	gmm::copy(gmm::sub_vector(UM, gmm::sub_interval(dof.Ut()+dof.Pt(), dof.Uv())) ,  Uv);
@@ -502,12 +496,6 @@ problemHT::assembly_mat(void)
 		//Obtain the flow in the branch i
 		gmm::scale(Uvi,pi*Ri*Ri);
 		// Allocate temp local tangent versor
-		vector_type lambdax_K, lambday_K, lambdaz_K;
-		for(size_type j=0; j<mf_coefvi[i].nb_dof(); j++){
-			lambdax_K.emplace_back(lambdax[i]);
-			lambday_K.emplace_back(lambday[i]);
-			lambdaz_K.emplace_back(lambdaz[i]);
-		}
 			#ifdef M3D1D_VERBOSE_
 		cout << "Assembling Advection Matrix for branch n° " << i << endl;
 			#endif
@@ -515,7 +503,7 @@ problemHT::assembly_mat(void)
 	
 		asm_advection_hematocrit(Bhi, mimv, mf_Hi[i], mf_Uvi[i],
 								mf_coefvi[i], Uvi, R_veci,
-									lambdax_K, lambday_K, lambdaz_K, meshv.region(i));
+									param.lambdax(i), param.lambday(i), param.lambdaz(i), meshv.region(i));
 
 
 			#ifdef M3D1D_VERBOSE_
@@ -759,16 +747,6 @@ problemHT::solve_fixpoint(void)
        	gmm::mult(Btv,DeltaPi,auxOSt);
         gmm::mult(Bvv,DeltaPi,auxOSv);
 
-	#ifdef M3D1D_VERBOSE_
-	cout << "  Assembling the tangent versor ..." << endl;
-	#endif
-	vector_type lambdax; // tangent versor: x component
-	vector_type lambday; // tangent versor: y component
-	vector_type lambdaz; // tangent versor: z component
-	std::ifstream ifs(descr.MESH_FILEV);
-	GMM_ASSERT1(ifs.good(), "impossible to read from file " << descr.MESH_FILEV);
-	asm_tangent_versor(ifs, lambdax, lambday, lambdaz);
-	ifs.close();
 	//Extracting Mvv_kv
 	#ifdef M3D1D_VERBOSE_
 	cout << "  Assembling Mvv0 in FixPoint Hematocrit..." << endl;
@@ -781,22 +759,22 @@ problemHT::solve_fixpoint(void)
 		if(i>0) shift += mf_Uvi[i-1].nb_dof();
 		scalar_type Ri = param.R(mimv, i);
 		scalar_type kvi = param.kv(mimv, i);
+
+		/* Va questo nel caso curvo?
 		// Coefficient \pi^2*Ri'^4/\kappa_v
 		vector_type ci(mf_coefvi[i].nb_dof(), pi*pi*Ri*Ri*Ri*Ri/kvi);
+		*/ //o questo?
+		vector_type ci(mf_coefvi[i].nb_dof());
+		for(size_type j=0; j<mf_coefvi[i].nb_dof(); ++j){
+			ci[j]=pi*pi*Ri*Ri*Ri*Ri/kvi*(1+param.Curv(i,j)*param.Curv(i,j)*Ri*Ri);
+		}
 		// Allocate temp local matrices
 		sparse_matrix_type Mvvi(mf_Uvi[i].nb_dof(), mf_Uvi[i].nb_dof());
 		sparse_matrix_type Dvvi(dof.Pv(), mf_Uvi[i].nb_dof());
-		// Allocate temp local tangent versor
-		vector_type lambdax_K, lambday_K, lambdaz_K;
-		for(size_type j=0; j<mf_coefvi[i].nb_dof(); j++){
-			lambdax_K.emplace_back(lambdax[i]);
-			lambday_K.emplace_back(lambday[i]);
-			lambdaz_K.emplace_back(lambdaz[i]);
-		}
 		// Build Mvvi and Dvvi
 		asm_network_poiseuille(Mvvi, Dvvi, 
 			mimv, mf_Uvi[i], mf_Pv, mf_coefvi[i],
-			ci, lambdax_K, lambday_K, lambdaz_K, meshv.region(i));
+			ci, param.lambdax(i), param.lambday(i), param.lambdaz(i), meshv.region(i));
 		gmm::scale(Dvvi, pi*Ri*Ri);
 		// Copy Mvvi and Dvvi
 		gmm::add(Mvvi, 
