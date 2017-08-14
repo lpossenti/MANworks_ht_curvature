@@ -67,12 +67,16 @@ struct param3d1d {
 	scalar_type Rav_;
 	//! Dimensionaless radii of the vessel branches
 	vector_type R_;
+	//! Dimensionless radius of the vessel branches (small vector)
+	vector_type Ri_;
 	//! Dimensionless conductivity of the tissue
 	vector_type kt_;
 	//! Dimensionless conductivity of the vessel wall
 	vector_type Q_;
 	//! Dimensionless conductivity of the vessel bed
 	vector_type kv_;
+	//! Dimensionless conductivity of the vessel bed divided by branch
+	vector_type kvi_;
         //! Dimensionless hydraulic conductivity of the lymphatic vessels (linear case)
         vector_type Q_LF_;
 	// Dimensionless parameter A of the lymphatic sigmoid 
@@ -131,6 +135,7 @@ struct param3d1d {
 		bool IMPORT_CURVE = FILE_.int_value("CURVE_PROBLEM");
 
 		// Check
+		gmm::resize(Ri_, n_branch);
 		if (IMPORT_RADIUS)
 			GMM_ASSERT1(NONDIM_PARAM == 0,
 				"try to import non constant (dimensionless) radius:" 
@@ -145,13 +150,13 @@ struct param3d1d {
 			else // to be non-dimensionalized
 				Rav_ = FILE_.real_value("RADIUS", "Vessel average radius")/FILE_.real_value("d");
 			R_.assign(dof_datav, Rav_);
-
+			Ri_.assign(n_branch, Ri_);
 		} else { 				/* case R' = R'(s) */
 			std::string RFILE = FILE_.string_value("RFILE"); 
 			cout << "  Importing radius values from file " << RFILE << " ..." << endl;
 			std::ifstream ist(RFILE);
 			if (!ist) cerr << "impossible to read from file " << RFILE << endl;
-			import_network_radius(R_, ist, mf_datav_);
+			import_network_radius(R_,Ri_, ist, mf_datav_);;
 		}
 
 		if(!IMPORT_CURVE){
@@ -217,6 +222,7 @@ struct param3d1d {
 			// Fill the data arrays
 			  kt_.assign(dof_datat,  ktval);
 			  kv_.assign(dof_datav,  kvval);
+			  kvi_.assign(n_branch,kvval);
 			   Q_.assign(dof_datav,   Qval);
 
 		} 
@@ -248,6 +254,9 @@ struct param3d1d {
 				Q_.emplace_back(2.0*pi*Lp_*P_/U_*r);
 			}
 
+			for(auto r: Ri_){
+				kvi_.emplace_back(pi/2.0/(Gamma_+2.0)/mu_v_*P_*d_/U_*r*r*r*r);
+			}
 			// Fixed Point Method for Lymphatic System (Sigmoid)
 			if(!LINEAR_LYMPHATIC_DRAINAGE)
 			{
@@ -305,11 +314,11 @@ struct param3d1d {
 	inline scalar_type Q  (size_type i) { return Q_[i];  } const
 	//! Get the radius at a given mesh_region
 	scalar_type R  (const getfem::mesh_im & mim, const size_type rg) { 
-		return compute_radius(mim, mf_datav_, R_, rg);  
+		return Ri_[rg];
 	}
 	//! Get the vessel bed permeability at a given mesh_region
 	scalar_type kv  (const getfem::mesh_im & mim, const size_type rg) { 
-		return compute_radius(mim, mf_datav_, kv_, rg);  
+		return kvi_[rg];
 	}
 	//! Get the radius
 	vector_type & R (void) { return R_; }
