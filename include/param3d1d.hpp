@@ -150,7 +150,7 @@ struct param3d1d {
 			else // to be non-dimensionalized
 				Rav_ = FILE_.real_value("RADIUS", "Vessel average radius")/FILE_.real_value("d");
 			R_.assign(dof_datav, Rav_);
-			Ri_.assign(n_branch, Ri_);
+			Ri_.assign(n_branch, Rav_);
 		} else { 				/* case R' = R'(s) */
 			std::string RFILE = FILE_.string_value("RFILE"); 
 			cout << "  Importing radius values from file " << RFILE << " ..." << endl;
