@@ -60,7 +60,7 @@ $ export LD_LIBRARY_PATH=/home/...path/to.../getfem/lib
 ```
 Also SAMG LECENCE is required.
 
-'GNUPLOT' : 
+GNUPLOT : 
 GNUPLOT is NOT required, but it can be used to visualize residuals. 
 To use it, uncomment lines within the code and see the GNUPLOT_Istruzioni_installazione to install.
 https://sourceforge.net/projects/gnuplot/files/gnuplot/
