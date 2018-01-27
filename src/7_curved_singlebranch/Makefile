@@ -12,25 +12,18 @@
 #   DATE        : April 2015
 # ====================================================================
 
-CPPFLAGS=-I../../include -I$(mkGetfemInc) -I$(mkBoostInc) 
-CXXFLAGS+=-std=c++11 
-# -D=M3D1D_VERBOSE_
+include ../../config.mk
 
-CXXFLAGS += -I ${SAMG}/
-CXXFLAGS+= -DSAMG_UNIX_LINUX -DSAMG_LCASE_USCORE -DPYRAMID_TRIANGULAR_FACETS
-
-
-
+CPPFLAGS=-I../../include -I$(GETFEM_PREFIX)/include
+CXXFLAGS=-std=c++11 -D=M3D1D_VERBOSE_
 ifeq ($(DEBUG),yes)
   OPTFLAGS=-g -Wall
 else
   OPTFLAGS=-O3 -march=native
   CPPFLAGS+=-DNDEBUG
 endif
-LDFLAGS=-L../../lib -L$(mkGetfemLib) -L$(mkBoostLib)
-LDFLAGS += -L/opt/lib/samg/
+LDFLAGS=-L../../lib -L$(GETFEM_PREFIX)/lib 
 LIBRARIES=-lproblem3d1d -lgetfem -lutil -lboost_iostreams -lboost_system -lboost_filesystem
-LIBRARIES += -lamg -liomp5
 
 SRCS=$(wildcard *.cpp)
 OBJS=$(SRCS:.cpp=.o)
@@ -49,6 +42,7 @@ all: $(EXEC)
 
 $(EXEC): $(OBJS)
 	$(CXX) $(LDFLAGS) -o $@ $(OBJS) $(LIBRARIES)
+	mkdir vtk
 
 clean:
 	$(RM) $(OBJS) $(EXEC) *~ *.log

@@ -18,13 +18,18 @@
 TEST_PARAM      = 0;
 % Flag to export results
 VTK_EXPORT      = 1;
+% Flag to enable the curve model
+CURVE_PROBLEM = 1;
+% Flag to import the file with curvature (Remember to ENABLE CURVE_PROBLEM)
+% If this flag is 0, the curvature is computed on the mesh
+IMPORT_CURVE = 0;
 % Output directory
 OUTPUT          = 'vtk/';
 % Output directory where parameters EXPORT_PARAM=1 are saved 
 OutputDir       = 'vtk/';
 OutputDirectory = 'vtk/';
 % Flag to import the dimensionless radius (to do that TEST_PARAM must be equal to 0 and parameters P U d k mu must be left)
-IMPORT_RADIUS   = 1;
+IMPORT_RADIUS   = 0;
 % Flag to export radius and conductivity of network in vtk file
 EXPORT_PARAM    = 1;
 % Flag to export the absolute value of vessel fluid velocity
@@ -34,7 +39,7 @@ EXPORT_REAL_VELOCITY = 1;
 % Flag to print residuals of Fixed Point Method
 PRINT_RESIDUALS       = 1;
 % Flag to choose Lymphatic Drainage Curve (0 = sigmoid; 1= linear)
-LINEAR_LYMPHATIC_DRAINAGE = 1;
+LINEAR_LYMPHATIC_DRAINAGE = 0;
 % Flag to study the hematocrit distribution all over the network (0 = constant; 1= transport)
 HEMATOCRIT_TRANSPORT = 1;
 %===================================
@@ -50,7 +55,7 @@ NOISED_T   = '0';
 % Path to import the 3d mesh
 MESH_FILET = ' '; 
 % Path to import the 1d list of points
-MESH_FILEV = './anastomosi.pts'
+MESH_FILEV = './segment.pts'
 % Path to import radius of the newtork (read if IMPORT_RADIUS=1)
 RFILE      = 'radius.pts'
 % Path to import the 1d list of points for Ht
@@ -61,7 +66,7 @@ MESH_FILEH = './HT_BCs.pts'
 % GetFem type for the 3D mesh
 MESH_TYPET  = 'GT_PK(3,1)';
 % GetFem type for the 1D mesh
-MESH_TYPEV  = 'GT_PK(1,1)';      
+MESH_TYPEV  = 'GT_PK(1,1)';   
 % GetFem type for the 3D Finite Element Methods
 FEM_TYPET   = 'FEM_RT0(3)';
 FEM_TYPET_P = 'FEM_PK_DISCONTINUOUS(3,0)';
@@ -81,11 +86,9 @@ IM_TYPEH    = 'IM_GAUSS1D(6)';
 % Solver for the monolithic 3D/1D linear system
 % direct:    'SuperLU'
 % iterative: 'CG','BiCGstab','GMRES','QMR','LSCG'
-SOLVE_METHOD = 'GMRES';
+SOLVE_METHOD = 'SuperLU';
 % Maximum number of iterations for iterative solvers
 MAXITER  = 100;
-% Residual for GMRES
-RES = 1E-16;  
 % Residual for conjugate gradient
 RESIDUAL = 1E-16;    
 % Nb of discretisation point for 3D-1D interpolation
@@ -99,7 +102,7 @@ k  = 1.0E-18;
 P  = 133.32;
 % Characteristic flow speed in the capillary bed [m/s]
 U  = 100E-06;
-% Characteristic length of the problem [m]
+% Characteristic l37ength of the problem [m]
 d  = 5.0E-4;
 % Hydraulic conductivity of the capillary walls [m^2 s/kg]
 Lp = 1E-12;
@@ -115,21 +118,19 @@ Pi_v = 27*133.32;
 Pi_t = 2*133.32;
 % Reflection Coefficient of Starling Equation [-]
 sigma = 0.95;
-% Order of velocity profile
-Gamma = 2.0;
 %=================================
 %  LYMPHATIC FLOW
 %=================================
 % LINEAR case
 % Hydraulic conductivity of the lymphatic wall [kg * m/s]
-Lp_LF = 0*1.04E-06;
+Lp_LF = 1.04E-06*0;
 % Pressure inside lymphatic capillaries [-]
 PL=0;
 % Coefficient of lymphatic flow modelled as a SIGMOID of equation QLF = A - B / ( 1 + exp ( ( Pt + D ) / C )
 % Coefficient A [s-1]
-A_LF = 1.71106E-5;
+A_LF = 1.7170E-7;
 % Coefficient B [s-1]
-B_LF = 1.642565E-5;
+B_LF = 1.6485E-7;
 % Coefficient C [Pa]
 C_LF = 0.6573*133.32;
 % Coefficient D [Pa]
@@ -178,9 +179,9 @@ P0 = -1;
 %  FIXED POINT METHOD (FPM)
 %===================================
 % Residual for Solution of FPM
-Residual_Sol_FPM   = 1E-8;
+Residual_Sol_FPM   = 1E-12;
 % Residual for Conservation of Mass FPM
-Residual_Mass_FPM  = 1E-4;
+Residual_Mass_FPM  = 1E-10;
 % Maximum number of iterations for FPM
 Number_Iteration   = 30;
 % Under-relaxation coefficient
@@ -190,7 +191,7 @@ Saving_Iteration   = 1;
 % Coefficient for MIX condition of hematocrit transport
 BETA_H=0;
 %Peclet Number for stabilization of hematocrit transport
-THETA=1;
+THETA=0;
 %Initial guess for hematocrit separation phase computation
 H_START=0.45;
 % Temperature of the blood
@@ -198,6 +199,6 @@ Temp=37
 % Flag for Type of Viscosity (Vivo or vitro)
 Visco_v=0;
 % Residual for Conservation of Mass FPM
-Residual_Hema_FPM  = 1E-8;
+Residual_Hema_FPM  = 1E-10;
 % Under-relaxation coefficient
 UNDER_RELAXATION_COEFFICIENT_HEMA  = 1;

@@ -18,6 +18,11 @@
 TEST_PARAM      = 0;
 % Flag to export results
 VTK_EXPORT      = 1;
+% Flag to enable the curve model
+CURVE_PROBLEM = 1;
+% Flag to import the file with curvature (Remember to ENABLE CURVE_PROBLEM)
+% If this flag is 0, the curvature is computed on the mesh
+IMPORT_CURVE = 0;
 % Output directory
 OUTPUT          = 'vtk/';
 % Output directory where parameters EXPORT_PARAM=1 are saved 
@@ -37,6 +42,7 @@ PRINT_RESIDUALS       = 1;
 LINEAR_LYMPHATIC_DRAINAGE = 1;
 % Flag to study the hematocrit distribution all over the network (0 = constant; 1= transport)
 HEMATOCRIT_TRANSPORT = 1;
+
 %===================================
 %  MESH
 %===================================
@@ -50,18 +56,20 @@ NOISED_T   = '0';
 % Path to import the 3d mesh
 MESH_FILET = ' '; 
 % Path to import the 1d list of points
-MESH_FILEV = './anastomosi.pts'
+MESH_FILEV = './network.pts'
 % Path to import radius of the newtork (read if IMPORT_RADIUS=1)
-RFILE      = 'radius.pts'
+RFILE      = './radius.pts'
 % Path to import the 1d list of points for Ht
-MESH_FILEH = './HT_BCs.pts'
+MESH_FILEH = './Ht.pts' 
+% Path to the curvature parameters
+CURVE_FILE = './curve.pts'
 %===================================
 %  GETFEM DESCRIPTORS
 %===================================
 % GetFem type for the 3D mesh
 MESH_TYPET  = 'GT_PK(3,1)';
 % GetFem type for the 1D mesh
-MESH_TYPEV  = 'GT_PK(1,1)';      
+MESH_TYPEV  = 'GT_PK(1,1)';   
 % GetFem type for the 3D Finite Element Methods
 FEM_TYPET   = 'FEM_RT0(3)';
 FEM_TYPET_P = 'FEM_PK_DISCONTINUOUS(3,0)';
@@ -81,13 +89,11 @@ IM_TYPEH    = 'IM_GAUSS1D(6)';
 % Solver for the monolithic 3D/1D linear system
 % direct:    'SuperLU'
 % iterative: 'CG','BiCGstab','GMRES','QMR','LSCG'
-SOLVE_METHOD = 'GMRES';
+SOLVE_METHOD = 'SuperLU';
 % Maximum number of iterations for iterative solvers
 MAXITER  = 100;
-% Residual for GMRES
-RES = 1E-16;  
 % Residual for conjugate gradient
-RESIDUAL = 1E-16;    
+RESIDUAL = 1E-8;    
 % Nb of discretisation point for 3D-1D interpolation
 NInt = 50;
 %===================================
@@ -98,15 +104,15 @@ k  = 1.0E-18;
 % Average interstitial pressure [Pa]
 P  = 133.32;
 % Characteristic flow speed in the capillary bed [m/s]
-U  = 100E-06;
-% Characteristic length of the problem [m]
-d  = 5.0E-4;
+U  = 1E-03;
+% Characteristic l37ength of the problem [m]
+d  = 1.0E-4;
 % Hydraulic conductivity of the capillary walls [m^2 s/kg]
 Lp = 1E-12;
 % Average radius of the capillary vessels [m]
 RADIUS = 4.00E-6;
 % Blood Viscosity [kg/m/s]
-mu_v = 3E-3;
+mu_v = 9.33E-3;
 % Interstial Fluid Viscosity [kg/m/s]
 mu_t = 1.2E-3;
 % Oncotic plasma pressure [Pa]
@@ -116,7 +122,7 @@ Pi_t = 2*133.32;
 % Reflection Coefficient of Starling Equation [-]
 sigma = 0.95;
 % Order of velocity profile
-Gamma = 2.0;
+Gamma=2.0;
 %=================================
 %  LYMPHATIC FLOW
 %=================================
@@ -127,9 +133,9 @@ Lp_LF = 0*1.04E-06;
 PL=0;
 % Coefficient of lymphatic flow modelled as a SIGMOID of equation QLF = A - B / ( 1 + exp ( ( Pt + D ) / C )
 % Coefficient A [s-1]
-A_LF = 1.71106E-5;
+A_LF = 1.7170E-7;
 % Coefficient B [s-1]
-B_LF = 1.642565E-5;
+B_LF = 1.6485E-7;
 % Coefficient C [Pa]
 C_LF = 0.6573*133.32;
 % Coefficient D [Pa]
@@ -171,7 +177,7 @@ BClabel = 'MIX MIX  MIX  MIX  MIX  MIX'
 % BC values
 BCvalue = '0.0 0.0  0.0  0.0  0.0  0.0'
 % Coefficient for MIX condition
-BETA = 2.22E-6;
+BETA = 1.1E-5;
 % Outside interstitial pressure for MIX condition
 P0 = -1;
 %===================================
@@ -182,7 +188,7 @@ Residual_Sol_FPM   = 1E-8;
 % Residual for Conservation of Mass FPM
 Residual_Mass_FPM  = 1E-4;
 % Maximum number of iterations for FPM
-Number_Iteration   = 30;
+Number_Iteration   = 50;
 % Under-relaxation coefficient
 UNDER_RELAXATION_COEFFICIENT  = 1;
 % Number of iteration between saving progress
