@@ -80,6 +80,10 @@ viscosity_vivo(scalar_type hematocrit, scalar_type R, scalar_type mu_plasma)
 		//cout << "relative_viscosity" << relative_viscosity << endl;
 		viscosity = relative_viscosity*mu_plasma;
 		//cout << viscosity << endl;
+
+		//Check for admissible value of Viscosity (Remember that viscosity is expressed in Pa*s)
+		if(viscosity > 0.05) //That is 50 cP (Blood viscosity in a vessel with radius 4 \mum and H=0.45: 9.33 cP; 1cP = 10^-3 Pa*s) 
+			cout << "------------------------------------" << endl << "WARNING! Viscosity is higher than 50cP in at least one vessel. Please check your parameters" << endl <<  "------------------------------------"<< endl;
 		return viscosity;
 
 }
