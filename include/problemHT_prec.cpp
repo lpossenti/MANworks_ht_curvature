@@ -453,9 +453,11 @@ problemHT::assembly_mat(void)
 	scalar_type Theta = PARAM.real_value("THETA", "Theta Number");
 	vector_type element_size(dofHT.H());
 	scalar_type max_size=0;
+	scalar_type max_product=0;//Luca
 	scalar_type temp;
 	
-	for(dal::bv_visitor k(meshv.convex_index()); !k.finished();++k){
+	//Diffusivity Simone
+	/*for(dal::bv_visitor k(meshv.convex_index()); !k.finished();++k){
 		temp=meshv.convex_area_estimate(k,2);
 		if(temp>max_size) max_size=temp;
 		}
@@ -467,19 +469,70 @@ problemHT::assembly_mat(void)
 		else
 			max_U=fabs(max_U_negative);
 	
-	scalar_type Diffusivity=max_size*max_U*Theta;
+	scalar_type Diffusivity=max_size*max_U/2*Theta;*/
 
-			#ifdef M3D1D_VERBOSE_
-		cout << "Max Element Size	  : " << max_size << endl;
-		cout << "Max Velocity    	  : " << max_U << endl;
-		cout << "Artificial Diffusivity   : " << Diffusivity << endl;
-			#endif
+	//Diffusivity Luca
+	#ifdef M3D1D_VERBOSE_
+	cout << endl << "Assembling artificial diffusivity" << endl;
+	#endif
+	size_type shift_U = 0;
+        size_type shift_H = 0;
+        for(size_type i=0; i<nb_branches; ++i){
+		#ifdef M3D1D_VERBOSE_
+            	cout << "Branch " << i << endl;
+		#endif
+		//Estimate maximum h for the i-th branch
+            	for(dal::bv_visitor k(meshv.region(i).index()); !k.finished();++k){
+			temp=meshv.convex_area_estimate(k,2);
+			if(temp>max_size) max_size=temp;
+		}
+		#ifdef M3D1D_VERBOSE_
+            		cout << "Maximum h: " << max_size << endl;
+		#endif		
+		
+		//Estimate maximum u for the i-th branch
+            	if(i>0) shift_U += mf_Uvi[i-1].nb_dof();
+            	//Obtain the vector of velocity in branch i
+            	vector_type Uvi( mf_Uvi[i].nb_dof()); gmm::clear(Uvi);
+            	gmm::copy(gmm::sub_vector(UM, gmm::sub_interval(dof.Ut()+dof.Pt()+shift_U, mf_Uvi[i].nb_dof())) ,  Uvi);
+            	//maximum u
+            	scalar_type max_U;
+            	scalar_type max_U_positive=*max_element(Uvi.begin(), Uvi.end());
+           	scalar_type max_U_negative=*min_element(Uvi.begin(), Uvi.end());
+            	if(max_U_positive > fabs(max_U_negative))
+                     max_U=max_U_positive;
+            	else
+                     max_U=fabs(max_U_negative);
+		#ifdef M3D1D_VERBOSE_
+            		cout << "Maximum velocity: " << max_U << endl;
+		#endif
+            	temp = max_U * max_size;
+            	if(temp> max_product) 
+			max_product=temp;
+        }
+        scalar_type Diffusivity =  max_product * Theta/2;
+
+
+
+	#ifdef M3D1D_VERBOSE_
+	//cout << "Max Element Size	  : " << max_size << endl;
+	//cout << "Max Velocity    	  : " << max_U << endl;
+	cout << "Max (Velocity*h)    	  : " << max_product << endl;
+	cout << "Artificial Diffusivity   : " << Diffusivity << endl;
+	if(Diffusivity)
+		{
+			scalar_type Pe_h = max_product/2/Diffusivity;
+			cout << "max(Pe_h)		  : " << Pe_h << endl;
+		}
+	#endif
 
 
 	
 	// Local matrices
-	size_type shift_U = 0;
-	size_type shift_H = 0;
+	//size_type shift_U = 0;//luca
+	//size_type shift_H = 0;
+	shift_U = 0;
+	shift_H = 0;//luca -dif
 	for(size_type i=0; i<nb_branches; ++i){
 		if(i>0) shift_U += mf_Uvi[i-1].nb_dof();
 		if(i>0) shift_H += mf_Hi[i-1].nb_dof();
@@ -708,7 +761,7 @@ problemHT::solve_fixpoint(void)
         vector_type auxOSt(dof.Pt());
         vector_type auxOSv(dof.Pv());
         vector_type auxCM(dof.Pt()); gmm::clear(auxCM);
-	//Gnuplot gp;
+	// Gnuplot gp;
 	vector_type RES_SOL(max_iteration), RES_CM(max_iteration);
 
 	//Hematocrit variables
@@ -763,7 +816,7 @@ problemHT::solve_fixpoint(void)
 		scalar_type Ri = param.R(mimv, i);
 // cout << " ----------raggio.." <<Ri << endl;
 //scalar_type kvi = param.kv(i);
-	        scalar_type kvi = param.kv(mimv, i);
+		 scalar_type kvi = param.kv(mimv, i);
 // cout << " ----------kvi.." <<kvi << endl;
 
 		/* Va questo nel caso curvo?
@@ -959,6 +1012,7 @@ while(RK && iteration < max_iteration)
 	if(!LINEAR_LYMPH()){
 	//Adding lymphatic contribution
 	F_new=problem3d1d::modify_vector_LF(U_old,F_new);
+	gmm::copy(F_new,FM);
 	}
 
 //d-1 find the new solution as AM *U(k+1) = F(k)
@@ -971,6 +1025,12 @@ while(RK && iteration < max_iteration)
 
 	U_new=problem3d1d::iteration_solve(U_old,F_new);
 	gmm::copy(U_new,UM);
+	
+// 	gmm::clear(UM);
+// 	problem3d1d::solve_samg();
+// 	gmm::copy(UM,U_new);
+	
+
 	t=clock()-t;
 //e-1 find the new solution for hematocrit as AM_HT *H(k+1) = F(k)
 //e-2 under-relaxation process H(k+1)= alfa*H(k+1) + (1-alfa)H(k)
@@ -1083,12 +1143,12 @@ while(RK && iteration < max_iteration)
 	RES_SOL[iteration-1]=fabs(resSol);
 	RES_CM[iteration-1]=fabs(resCM);
 	RES_H[iteration-1]=fabs(resH);
-	/*gp << "set logscale y; set xlabel 'iteration';set ylabel 'residual'; plot '-' w lines title 'Solution Residual', '-' w lines title 'Mass Conservation Residual','-' w lines title 'Hematocrit Residual'\n";
-
-	gp.send1d(RES_SOL);
-	gp.send1d(RES_CM);
-	gp.send1d(RES_H);
-	gp.flush();*/
+// 	gp << "set logscale y; set xlabel 'iteration';set ylabel 'residual'; plot '-' w lines title 'Solution Residual', '-' w lines title 'Mass Conservation Residual','-' w lines title 'Hematocrit Residual'\n";
+// 
+// 	gp.send1d(RES_SOL);
+// 	gp.send1d(RES_CM);
+// 	gp.send1d(RES_H);
+// 	gp.flush();
 
 	//De-allocate memory
 	gmm::clear(F_LF);
@@ -1103,33 +1163,33 @@ while(RK && iteration < max_iteration)
 	if(RK)
 		cout << "The method has NOT reached convergence for minimum residual" << endl;
 
-	/*Gnuplot gp1;
-	gp1 << "plot '-' w lines title 'Hematocrit'\n";
-	gp1.send1d(UM_HT);
-	gp1.flush();*/
-	
+// 	Gnuplot gp1;
+// 	gp1 << "plot '-' w lines title 'Hematocrit'\n";
+// 	gp1.send1d(UM_HT);
+// 	gp1.flush();
+/*	
 	//De-allocate memory
 	gmm::clear(auxOSt);
 	gmm::clear(auxOSv);
 
-	/*Gnuplot gp2;
-	gp2 << "plot '-' w lines title 'Vessel velocity'\n";
-	gp2.send1d(gmm::sub_vector(UM,gmm::sub_interval(dof.Ut()+dof.Pt(), dof.Uv())));   
-
-	gp2.flush();*/
+// 	Gnuplot gp2;
+// 	gp2 << "plot '-' w lines title 'Vessel velocity'\n";
+// 	gp2.send1d(gmm::sub_vector(UM,gmm::sub_interval(dof.Ut()+dof.Pt(), dof.Uv())));   
+// 
+// 	gp2.flush();
 	//De-allocate memory
 	gmm::clear(auxOSt);
 	gmm::clear(auxOSv);
 
 
-	/*Gnuplot gp3;
+	Gnuplot gp3;
 	gp3 << "plot '-' w lines title 'Vessel pressure'\n";
 	gp3.send1d(gmm::sub_vector(UM,gmm::sub_interval(dof.Ut()+dof.Pt()+dof.Uv(),dof.Pv())));   
 
-	gp3.flush();*/
+	gp3.flush();
 	//De-allocate memory
 	gmm::clear(auxOSt);
-	gmm::clear(auxOSv);
+	gmm::clear(auxOSv);*/
 
 return true;
 }

@@ -19,6 +19,7 @@
 #include <getfem/getfem_assembling.h> 
 #include <getfem/getfem_mesh.h>
 #include <gmm/gmm.h>
+#include <defines.hpp>
 
 namespace getfem {
 
@@ -80,6 +81,53 @@ compute_radius
 	 const size_type & rg
 	 ) 
 {
+	/*vector_type dof_enum;
+	size_type fine=0;
+	for(getfem::mr_visitor mrv(mf_coef.linked_mesh().region(rg)); !mrv.finished(); ++mrv){
+		for(auto b: mf_coef.ind_basic_dof_of_element(mrv.cv())){
+			dof_enum.emplace_back(b);
+			fine++;
+		}
+	}
+	size_type first_=dof_enum[0];
+	return R[first_];*/
+
+	//Luca
+        getfem::generic_assembly assem;
+        assem.set("u=data(#1); V()+=u(i).comp(Base(#1))(i)");
+        assem.push_mi(mim);
+        assem.push_mf(mf_coef);
+        assem.push_data(R);
+        std::vector<scalar_type> v(1);
+        assem.push_vec(v);
+        assem.assembly(rg);
+
+        getfem::generic_assembly assem1;
+        assem1.set("u=data(#1); V()+=u(i).comp(Base(#1))(i)");
+        assem1.push_mi(mim);
+        assem1.push_mf(mf_coef);
+        std::vector<scalar_type> one(gmm::vect_size(R), 1.0);
+        assem1.push_data(one);
+        std::vector<scalar_type> measure(1);
+        assem1.push_vec(measure);
+        assem1.assembly(rg);
+
+        //cout << "Integral radius: " << v[0] << endl << "Integral measure: " << measure[0] << endl << "Radius: " << v[0]/measure[0] << endl;
+	//size_type rg_size = mf_coef.linked_mesh().region(rg).size();
+	//cout << "Size: " << rg_size << endl << "h: " << measure[0]/rg_size << endl;
+        return v[0]/measure[0];
+}
+
+template
+<typename VEC>
+scalar_type
+old_compute_radius
+	(const mesh_im & mim,
+	 const mesh_fem & mf_coef,
+	 const VEC & R,
+	 const size_type & rg
+	 ) 
+{
 	VEC rbasis(mf_coef.nb_dof());
 	asm_basis_function(rbasis, mim, mf_coef, rg);
 	size_type firstcv = mf_coef.linked_mesh().region(rg).index().first_true();
@@ -87,7 +135,6 @@ compute_radius
 	gmm::scale(rbasis, 1.0/estimate_h(mf_coef.linked_mesh(), firstcv));
 	return gmm::vect_sp(rbasis, R)/rg_size;
 }
-
 //! Compute the integral of the solution
 template
 <typename VEC>

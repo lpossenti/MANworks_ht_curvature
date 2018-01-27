@@ -13,12 +13,34 @@
   @date   January 2016.
   @brief  Definition of the main class for the 3D/1D coupled problem.
  */
-
 #include <problem3d1d.hpp>
+#include <AMG_Interface.hpp>
 #include <cmath>
+#include "darcy_preconditioner.hpp"
+ #include "darcy_preconditioner_vessel.hpp"
+ #include "darcy_preconditioner_mon.hpp"
+ #include "gmm/gmm_inoutput.h"
+// #include "darcy_preconditioner_mon_coup.hpp"
+// #include "darcy_preconditioner_tissue_coup.hpp"
+
+//#define CSC_INTERFACE
+#define CSR_INTERFACE
+//#define SPARSE_INTERFACE
 
 
+#define DIRECT_SOLVER 
+//#define AMG_STAND_ALONE
+//#define AMG_ACCELERATED
 
+#define FIXP_GMRES // to comment in case of uncoupled system
+
+#include "samg.h"
+
+/* default 4 Byte integer types */
+#ifndef APPL_INT
+#define APPL_INT int
+#endif
+/* end of integer.h */
 namespace getfem {
 
 
@@ -86,8 +108,12 @@ problem3d1d::import_data(void)
 	cout << "Importing descriptors for tissue and vessel problems ..." << endl;
 	#endif
 	descr.import(PARAM);
+	if(PARAM.int_value("IMPORT_CURVE"))
+		c_descr.import(PARAM);
 	#ifdef M3D1D_VERBOSE_
 	cout << descr;
+	if(PARAM.int_value("IMPORT_CURVE"))
+		cout << c_descr;
 	#endif
 }
 
@@ -120,7 +146,28 @@ problem3d1d::build_mesh(void)
 	#endif
 	std::ifstream ifs(descr.MESH_FILEV);
 	GMM_ASSERT1(ifs.good(), "impossible to read from file " << descr.MESH_FILEV);
-	import_pts_file(ifs, meshv, BCv, nb_vertices, descr.MESH_TYPEV);
+
+	bool Import=PARAM.int_value("IMPORT_CURVE");
+	bool Curve=PARAM.int_value("CURVE_PROBLEM");
+
+	if(Curve && !Import){
+		import_pts_file(ifs, meshv, BCv, nb_vertices, descr.MESH_TYPEV, param);
+	}
+	else if(Import && !Curve){
+		GMM_ASSERT1(0,"If you want to import the curvature, you need to enable CURVE_PROBLEM=1");
+	}
+	else if(Import && Curve){
+		std::ifstream ifc(PARAM.string_value("CURVE_FILE","curvature file location"));
+		GMM_ASSERT1(ifc.good(), "impossible to read from file " << PARAM.string_value("CURVE_FILE","curvature file location"));
+		
+		import_pts_file(ifs,ifc, meshv, BCv, nb_vertices, descr.MESH_TYPEV, param);
+
+		ifc.close();
+	} else{
+		import_pts_file(ifs, meshv, BCv, nb_vertices, descr.MESH_TYPEV);
+	}
+
+
 	nb_branches = nb_vertices.size();
 	ifs.close();
 }
@@ -189,7 +236,7 @@ problem3d1d::build_param(void)
 	#ifdef M3D1D_VERBOSE_
 	cout << "Building parameters for tissue and vessel problems ..." << endl;
 	#endif
-	param.build(PARAM, mf_coeft, mf_coefv);
+	param.build(PARAM, mf_coeft, mf_coefv,mf_coefvi);
 	#ifdef M3D1D_VERBOSE_
 	cout << param ;
 	#endif
@@ -610,7 +657,7 @@ problem3d1d::assembly_mat(void)
 	gmm::add(Dtt,
 			  gmm::sub_matrix(AM, 
 					gmm::sub_interval(dof.Ut(), dof.Pt()),
-                                        gmm::sub_interval(0, dof.Ut())));
+                    gmm::sub_interval(0, dof.Ut())));
         //L2
 	//cout << param.Q_LF(0) << endl;
         scalar_type lf_coef=param.Q_LF(0);//scalar then uniform untill now
@@ -621,19 +668,7 @@ problem3d1d::assembly_mat(void)
                           gmm::sub_matrix(AM,
                                         gmm::sub_interval(dof.Ut(), dof.Pt()),
                                         gmm::sub_interval(dof.Ut(), dof.Pt())));
-       
-
-	#ifdef M3D1D_VERBOSE_
-	cout << "  Assembling the tangent versor ..." << endl;
-	#endif
-	vector_type lambdax; // tangent versor: x component
-	vector_type lambday; // tangent versor: y component
-	vector_type lambdaz; // tangent versor: z component
-	std::ifstream ifs(descr.MESH_FILEV);
-	GMM_ASSERT1(ifs.good(), "impossible to read from file " << descr.MESH_FILEV);
-	asm_tangent_versor(ifs, lambdax, lambday, lambdaz);
-	ifs.close();
-
+    
 	#ifdef M3D1D_VERBOSE_
 	cout << "  Assembling Mvv and Dvv ..." << endl;
 	#endif
@@ -642,25 +677,29 @@ problem3d1d::assembly_mat(void)
 	for(size_type i=0; i<nb_branches; ++i){
 
 		if(i>0) shift += mf_Uvi[i-1].nb_dof();
+// scalar_type Ri = param.Ri(i);
 		scalar_type Ri = param.R(mimv, i);
-		scalar_type kvi = param.kv(mimv, i);
-		// Coefficient \pi^2*Ri'^4/\kappa_v
-		vector_type ci(mf_coefvi[i].nb_dof(), pi*pi*Ri*Ri*Ri*Ri/kvi);
+//cout << " ----------raggio.." <<Ri << endl;
+//scalar_type kvi = param.kvi(i);
+		 scalar_type kvi = param.kv(mimv, i);
+//cout << " ----------kvi.." <<kvi << endl;
+		// Coefficient  \pi^2*Ri'^4/\kappa_v *(1+Ci^2*Ri^2) //Adaptation to the curve model
+		vector_type ci(mf_coefvi[i].nb_dof()); // gmm::clear(ci);
+		for(size_type j=0; j<mf_coefvi[i].nb_dof(); ++j){
+			ci[j]=pi*pi*Ri*Ri*Ri*Ri/kvi*(1.0+param.Curv(i,j)*param.Curv(i,j)*Ri*Ri);
+		}
 		// Allocate temp local matrices
 		sparse_matrix_type Mvvi(mf_Uvi[i].nb_dof(), mf_Uvi[i].nb_dof());
 		sparse_matrix_type Dvvi(dof.Pv(), mf_Uvi[i].nb_dof());
-		// Allocate temp local tangent versor
-		vector_type lambdax_K, lambday_K, lambdaz_K;
-		for(size_type j=0; j<mf_coefvi[i].nb_dof(); j++){
-			lambdax_K.emplace_back(lambdax[i]);
-			lambday_K.emplace_back(lambday[i]);
-			lambdaz_K.emplace_back(lambdaz[i]);
-		}
+
 		// Build Mvvi and Dvvi
 		asm_network_poiseuille(Mvvi, Dvvi, 
 			mimv, mf_Uvi[i], mf_Pv, mf_coefvi[i],
-			ci, lambdax_K, lambday_K, lambdaz_K, meshv.region(i));
+			ci, param.lambdax(i), param.lambday(i), param.lambdaz(i), meshv.region(i));
 		gmm::scale(Dvvi, pi*Ri*Ri);
+
+// cout << "-> !!!!!!---> --> --> --> versore tangente fluidodinamico ramo.."<< i << ": ..." << param.lambday(i) << endl;
+
 		// Copy Mvvi and Dvvi
 		gmm::add(Mvvi, 
 			gmm::sub_matrix(AM, 
@@ -916,16 +955,40 @@ problem3d1d::solve(void)
 	gmm::csc_matrix<scalar_type> A;
 	gmm::clean(AM, 1E-12);
 	gmm::copy(AM, A);
+
 	//gmm::clear(AM); // to be postponed for preconditioner
-	double time = gmm::uclock_sec();	
-	
+	double time = gmm::uclock_sec();
+        const int dim_u_t = dof.Ut(),
+                  dim_matrix_t = dof.Ut() + dof.Pt();
+	const int dim_uv = dof.Uv(),
+                  dim_matrix_v = dof.Uv() + dof.Pv();
+       int  dim_matrix = dof.Ut() + dof.Pt() + dof.Uv() + dof.Pv();
 	if ( descr.SOLVE_METHOD == "SuperLU" ) { // direct solver //
-		#ifdef M3D1D_VERBOSE_
+		#ifdef M3D1D_VERBOSE_ 
 		cout << "  Applying the SuperLU method ... " << endl;
 		#endif
 		scalar_type cond;
-		gmm::SuperLU_solve(A, UM, FM, cond);
+
+	/*gmm::copy(gmm::sub_matrix(AM,
+			gmm::sub_interval(0 , dim_matrix),
+			gmm::sub_interval(0 , dim_matrix)), A_csr);*/
+
+                double time2 = gmm::uclock_sec();
+		gmm::SuperLU_solve(gmm::sub_matrix(A,
+			gmm::sub_interval(0 , dim_matrix),
+			gmm::sub_interval(0 , dim_matrix)), gmm::sub_vector(UM,gmm::sub_interval(0,dim_matrix)), gmm::sub_vector(FM,gmm::sub_interval(0,dim_matrix)), cond);
+		#ifdef M3D1D_VERBOSE_ 
 		cout << "  Condition number : " << cond << endl;
+		cout << "-----ZZZZZ ----- ... time to solveLu : " << gmm::uclock_sec() - time2 << " seconds\n";
+                #endif
+	//	gmm::SuperLU_solve(gmm::sub_matrix(A,
+	//		gmm::sub_interval(dim_matrix , dim_matrix_v),
+	//		gmm::sub_interval(dim_matrix , dim_matrix_v)), gmm::sub_vector(UM,gmm::sub_interval(dim_matrix,dim_matrix_v)),
+	//		 gmm::sub_vector(FM,gmm::sub_interval(dim_matrix,dim_matrix_v)), cond);
+		
+                #ifdef M3D1D_VERBOSE_ 
+                cout << "  Condition number : " << cond << endl;
+		#endif
 	}
 	else { // Iterative solver //
 
@@ -961,8 +1024,250 @@ problem3d1d::solve(void)
 			#ifdef M3D1D_VERBOSE_
 			cout << "  Applying the Generalized Minimum Residual method ... " << endl;
 			#endif
-			size_type restart = 50;
-			gmm::gmres(A, UM, FM, PM, restart, iter);
+               	  
+               	        #ifdef FIXP_GMRES
+               	        #else
+               	  // CLASSIC GMRES, it can be used in case of uncoupled problem
+		  
+                      size_type restart = 50;
+
+                        gmm::csr_matrix<double> Mtt;gmm::csr_matrix<double> Mtv;
+                        gmm::csr_matrix<double> Mtt1;gmm::csr_matrix<double> Mtv1;
+                        gmm::csr_matrix<double> Qtv;
+			cout << " starting copying" << endl;
+                        gmm::copy(gmm::sub_matrix(AM, gmm::sub_interval(0 , dim_u_t),
+                                                      gmm::sub_interval(0 , dim_u_t)), Mtt); // mass matrix tissue
+			 
+                         gmm::copy(gmm::sub_matrix(AM, gmm::sub_interval( dof.Ut() + dof.Pt(),  dof.Uv()),
+                                                     gmm::sub_interval(dof.Ut() + dof.Pt() , dof.Uv())), Mtv); // mass matrix vessel
+
+
+                        gmm::copy(gmm::sub_matrix(AM, gmm::sub_interval(dof.Ut(), dof.Pt()),
+                                                      gmm::sub_interval(dof.Ut(), dof.Pt())), Mtt1); // coupling tissue
+			 
+                         gmm::copy(gmm::sub_matrix(AM, gmm::sub_interval(dim_u_t + dof.Uv(), dof.Pv()),
+                                                     gmm::sub_interval(dim_u_t + dof.Uv(), dof.Pv())), Mtv1); // coupling vessel
+                        gmm::copy(gmm::sub_matrix(AM, gmm::sub_interval(dim_u_t+dof.Uv(),dof.Pv()),
+                                                      gmm::sub_interval(dof.Ut(),dof.Pt())), Qtv);  
+ 
+			// gmm::copy(gmm::sub_matrix(AM, gmm::sub_interval(dof.Ut() + dof.Pt() , dof.Uv() + dof.Pv() ),
+                        //                             gmm::sub_interval(dof.Ut() + dof.Pt()  , dof.Uv() + dof.Pv())), Mtv);
+                        //std::cout<< Mtt << std::endl;
+                        cout << " starting precond" << endl;
+                        //cout<< "k_t"<< param.kt(0)<<endl;
+                        //   darcy_precond< gmm::csr_matrix<double>> precon(Mtt, mf_Pt, mimt); dim_matrix = dim_matrix_t;
+			darcy_precond_mon< gmm::csr_matrix<double>> precon(Mtt, mf_Pt, mimt, Mtv, mf_Pv, mimv);
+                        // darcy_precond_mon_coup< gmm::csr_matrix<double>> precon(Mtt, mf_Pt, mimt, Mtt1,Qtv, Mtv, mf_Pv, mimv,Mtv1);
+
+
+
+                        cout << " end precond" << endl;
+                        
+                        std::vector<double> solution(dim_matrix) , rhs(dim_matrix);
+                        gmm::copy(gmm::sub_vector(FM, gmm::sub_interval(0, dim_matrix)), rhs);
+
+		        cout << " starting gmres" << endl;
+                 
+                        double time3 = gmm::uclock_sec();
+
+                // precon
+	 	        gmm::gmres(gmm::sub_matrix(AM, gmm::sub_interval(0, dim_matrix),
+                                   gmm::sub_interval(0, dim_matrix)),    
+                                   solution,
+                                   rhs,
+                                   precon, restart, iter);
+	        #ifdef M3D1D_VERBOSE_
+                cout << "-----ZZZZZ ----- ... time to solveGmres::gmm: " << gmm::uclock_sec() - time3 << " seconds\n";
+		#endif
+		//cout << " starting gmres" << endl;
+                // gmm::copy(solution, gmm::sub_vector(UM, gmm::sub_interval(dof.Ut() + dof.Pt(), dim_matrix_v)));
+                gmm::copy(solution, gmm::sub_vector(UM, gmm::sub_interval(0, dim_matrix)));
+		//	gmm::gmres(A, UM, FM, PM, restart, iter);
+
+		#endif
+		
+           
+
+
+                #ifdef FIXP_GMRES
+// 	      // fix point separated tissue/vessel
+		vector_type U_new; 
+	        vector_type U_old;
+		vector_type res_U; 
+                gmm::resize(U_new, dof.tot()); gmm::clear(U_new);
+	        gmm::resize(U_old, dof.tot()); gmm::clear(U_old);
+		gmm::resize(res_U, dof.tot()); gmm::clear(res_U);
+	        vector_type F_new;
+	        gmm::resize(F_new, dof.tot()); gmm::clear(F_new);
+                vector_type F_mod;
+                size_type restart = 50;
+                int max_iter=6;
+		int iter_fixp=0;
+                vector_type RES_SOL(max_iter);
+                scalar_type epsSol=1E-12; //descr.epsSol;
+	        scalar_type resSol; //epsSol*100;
+                gmm::iteration iter(descr.RES);  // iteration object with the max residu
+                bool RK=1;
+                
+		gmm::copy(UM,U_old);gmm::copy(FM,F_new);
+		
+                        //Extracting matrix
+                gmm::csr_matrix<double> Mtt;  gmm::csr_matrix<double> Btt;
+                gmm::csr_matrix<double> Qvt;  gmm::csr_matrix<double> Qtv;
+		gmm::csr_matrix<double> Mvv;
+                        // mass matrix tissue
+                gmm::copy(gmm::sub_matrix(AM, gmm::sub_interval(0 , dof.Ut()),
+                                              gmm::sub_interval(0 , dof.Ut())), Mtt); 
+
+                        // coupling tissue
+                gmm::copy(gmm::sub_matrix(AM, gmm::sub_interval(dof.Ut(), dof.Pt()),
+                                              gmm::sub_interval(dof.Ut(), dof.Pt())), Btt); 
+
+                gmm::copy(gmm::sub_matrix(AM, gmm::sub_interval(dof.Ut()+dof.Pt()+dof.Uv(), dof.Pv()),
+                                              gmm::sub_interval(dof.Ut(), dof.Pt())), Qvt); 
+                gmm::copy(gmm::sub_matrix(AM, gmm::sub_interval(dof.Ut(), dof.Pt()),
+			                      gmm::sub_interval(dof.Ut()+dof.Pt()+dof.Uv(), dof.Pv())), Qtv); 	
+                gmm::copy(gmm::sub_matrix(AM, gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()),
+			                      gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv())), Mvv); 	
+					      
+		#ifdef M3D1D_VERBOSE_
+		cout << "-----ZZZZZ ----- starting fix point" << endl;
+
+                cout << " starting preconditioning" << endl;
+		#endif
+	        darcy_precond< gmm::csr_matrix<double>> precond(Mtt, mf_Pt, mimt);
+	        //darcy_precond_vessel< gmm::csr_matrix<double>> precond_vessel(Mvv, mf_Pv, mimv);
+	        gmm::iteration iterv(descr.RES);
+	 
+	 
+	        // print matrix 
+                //cout << " starting printing matrix ..........!!!!!!!!!!!!!!!!!! ............" << endl;
+	        //gmm::MatrixMarket_IO::write("matrix", AM); 	
+		
+        while(RK &&  iter_fixp < max_iter)
+	        {	
+               // -> vessel solution
+               // modified rhs +Bvt*pt^k-1
+	        
+		iter.set_iteration(0);
+		#ifdef M3D1D_VERBOSE_
+		cout << "-----ZZZZZ ----- begin of while" << iter.get_iteration() << " iterations." << endl;
+		#endif
+                gmm::resize(F_mod, dof.Pv());
+                gmm::mult(Qvt,gmm::sub_vector(U_old,gmm::sub_interval(dof.Ut(),dof.Pt())),F_mod);
+                gmm::add(gmm::scaled(F_mod,-1),gmm::sub_vector(F_new,gmm::sub_interval(dof.Ut()+dof.Pt()+dof.Uv(), dof.Pv())));
+                scalar_type cond;
+		#ifdef M3D1D_VERBOSE_
+		cout << "-----ZZZZZ ----- starting SuperLU vessel" << endl;
+		#endif
+		
+			
+		double time3 = gmm::uclock_sec();
+                 gmm::SuperLU_solve(gmm::sub_matrix(AM, gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv()),
+                                         gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv()))  , 
+                                    gmm::sub_vector(U_new, 
+                                            gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv())),
+                                    gmm::sub_vector(F_new, 
+                                            gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv())), cond);
+                #ifdef M3D1D_VERBOSE_
+                cout << "-----ZZZZZ ----- time to solveSuperLu vessel::gmm: " << gmm::uclock_sec() - time3 << " seconds\n";
+                #endif
+		
+		// to decomment for use gmres in the vessel problem
+/*              vector_type Uv_new; 
+		gmm::resize(Uv_new,dof.Uv()+dof.Pv()); gmm::clear(Uv_new);
+		gmm::copy(gmm::sub_vector(U_new,gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv())),Uv_new);
+		iterv.set_iteration(0);
+		double time3 = gmm::uclock_sec();
+                gmm::gmres(
+		           gmm::sub_matrix(AM, gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv()),
+                                      gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv())),
+			   Uv_new,
+			   gmm::sub_vector(F_new, gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv())),
+			   precond_vessel,
+			   restart,iterv);
+	       cout << "-----ZZZZZ ----- ... time to solveGmres vessel::gmm: " << gmm::uclock_sec() - time3 << " seconds\n";
+               gmm::copy(Uv_new , gmm::sub_vector(U_new,gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv())));
+	       cout << "  .ZZZZZ .. vessel .. converged in " << iterv.get_iteration() << " iterations." << endl;*/ 
+	    
+	    
+	       // -> tissue soluition 
+
+               // GMRES 
+	       gmm::clear(F_mod);
+               gmm::resize(F_mod, dof.Pt());
+               gmm::mult(Qtv,gmm::sub_vector(U_new,gmm::sub_interval(dof.Ut()+dof.Pt()+dof.Uv(),dof.Pv())),F_mod);
+               gmm::add(gmm::scaled(F_mod,-1) , gmm::sub_vector(F_new,gmm::sub_interval(dof.Ut(),dof.Pt())));
+               
+ 
+	       
+	       //cout << " copying vectors" << endl;
+                 
+               
+
+			    
+		vector_type Ut_new; 
+		gmm::resize(Ut_new, dof.Ut()+dof.Pt()); gmm::clear(Ut_new);
+		gmm::copy(gmm::sub_vector(U_new,gmm::sub_interval(0,dof.Ut()+dof.Pt())),Ut_new);	    
+		vector_type Ft;     
+		gmm::resize(Ft, dof.Ut()+dof.Pt()); gmm::clear(Ft);
+		gmm::copy(gmm::sub_vector(F_new,gmm::sub_interval(0,dof.Ut()+dof.Pt())),Ft);
+// WARNING DO NOT PASS AS INTERVAL THE VECTORS
+                #ifdef M3D1D_VERBOSE_
+                cout << "-----ZZZZZ ----- starting gmres tissue" << endl;
+		#endif
+
+                double time4 = gmm::uclock_sec();
+		gmm::gmres(
+		           gmm::sub_matrix(AM, 
+					   gmm::sub_interval(0,dof.Ut()+dof.Pt()),
+					   gmm::sub_interval(0,dof.Ut()+dof.Pt())) ,
+			   Ut_new,
+			   Ft,
+			   precond, 
+			   restart,iter);
+		
+			   
+                //gmm::SuperLU_solve(gmm::sub_matrix(AM, 
+ 		//    		     gmm::sub_interval(0,dof.Ut()+dof.Pt()),
+ 	        // 		     gmm::sub_interval(0,dof.Ut()+dof.Pt())) ,
+ 	        //		     Ut_new,
+ 	        //		     Ft, cond);
+		#ifdef M3D1D_VERBOSE_
+		cout << "-----ZZZZZ ----- ... time to solveGmres tissue::gmm: " << gmm::uclock_sec() - time4 << " seconds\n";	   
+		#endif	   
+			   
+			   
+		gmm::copy(Ut_new , gmm::sub_vector(U_new,gmm::sub_interval(0,dof.Ut()+dof.Pt())));
+			    
+                #ifdef M3D1D_VERBOSE_
+                cout << "-----ZZZZZ ----- ... iteration to solve fix point::gmm: " << iter_fixp+1 <<"\n";
+                #endif
+                //Solution residual
+		gmm::add(U_new,gmm::scaled(U_old,-1),res_U); 
+		resSol=gmm::vect_norm2(res_U)/(gmm::vect_norm2(U_old)+1e-18);
+                RK = resSol >  epsSol;
+                iter_fixp++;
+
+                gmm::copy(U_new,U_old);
+                gmm::copy(FM , F_new);
+                
+		#ifdef M3D1D_VERBOSE_
+                cout << "  .ZZZZZ .. tissue gmres converged in " << iter.get_iteration() << " iterations." << endl; 
+		#endif
+		}
+
+                gmm::copy(U_old,UM);
+
+
+                #endif
+
+
+
+
+
+
+
 		}
 		else if ( descr.SOLVE_METHOD == "QMR" ) {
 			#ifdef M3D1D_VERBOSE_
@@ -1049,6 +1354,86 @@ problem3d1d::solve(void)
 }
 
 
+	bool problem3d1d::solve_samg (void)
+	{
+		
+#ifdef M3D1D_VERBOSE_
+		cout << "Solving the monolithic system ... " << endl;
+#endif
+
+
+
+//////////////////////////////////////AMG INTERFACE
+std::cout<<"converting A"<<std::endl;
+gmm::csr_matrix<scalar_type> A_csr;
+gmm::clean(AM, 1E-12);
+// gmm::copy(AM, A_csr);
+// std::cout<<"converting X"<<std::endl;
+// std::vector<scalar_type> X,  B;
+// gmm::resize(X,dof.tot()); gmm::clean(X, 1E-12);
+// gmm::copy(UM,X);
+// std::cout<<"converting B"<<std::endl;
+// gmm::resize(B,dof.tot());gmm::clean(B, 1E-12);
+// gmm::copy(FM,B);
+
+
+
+int dim_matrix=dof.Ut()+dof.Pt()+dof.Uv()+dof.Pv();
+gmm::copy(gmm::sub_matrix(AM,
+			gmm::sub_interval(0 , dim_matrix),
+			gmm::sub_interval(0 , dim_matrix)), A_csr);
+std::cout<<"converting X"<<std::endl;
+std::vector<scalar_type> X,  B;
+// gmm::resize(X,dof.tot()); gmm::clean(X, 1E-12);
+// gmm::copy(UM,X);
+
+gmm::resize(X,dim_matrix); gmm::clean(X, 1E-12);
+gmm::copy(gmm::sub_vector(UM,gmm::sub_interval(0,dim_matrix)),X);
+
+std::cout<<"converting B"<<std::endl;
+gmm::resize(B,dim_matrix);gmm::clean(B, 1E-12);
+// gmm::resize(B,dof.tot());gmm::clean(B, 1E-12);
+//gmm::copy(FM,B);
+gmm::copy(gmm::sub_vector(FM,gmm::sub_interval(0,dim_matrix)),B);
+
+
+
+AMG amg("3d1d");
+// amg.set_pt2uk(dofpt , nbdofu, nbdofp, pt_counter);
+amg.set_dof(dof.Pt(), dof.Ut(), dof.Pv(), dof.Uv());
+std::cout<< "init solve "<< std::endl;
+
+// non dobbiamo passare A_c
+ amg.convert_matrix(A_csr);
+ amg.solve(A_csr, X , B , 1);
+gmm::copy(amg.getsol(),gmm::sub_vector(UM,gmm::sub_interval(0,dim_matrix)));
+
+
+
+#ifdef SPARSE_INTERFACE
+				for(int i = 0 ; i < nrows ; i++ ){U_1[i]=u[i];
+					UM[i]=u[i];	
+				}
+				gmm::copy(U_1, UM);
+#endif
+#ifdef CSC_INTERFACE
+				for(int i = 0 ; i < nnu ; i++ ){
+					U_2[i]=u_samg[i];UM_transp[i]=u_samg[i];}
+				gmm::copy(U_2,UM);
+#endif
+				
+#ifdef CSR_INTERFACE
+				// for(int i = 0 ; i < nnu ; i++ ){
+				//	U_2[i]=u_samg[i];UM[i]=u_samg[i];}
+				 // gmm::copy(U_2,UM);
+#endif
+	
+export_vtk();
+			return true;
+			}; // end of solve
+
+
+
 vector_type
 problem3d1d::compute_lymphatics(vector_type U_O)
 {
@@ -1100,8 +1485,193 @@ problem3d1d::iteration_solve(vector_type U_O,vector_type F_N){
 	vector_type U_new;
 	gmm::resize(U_new, dof.tot()); gmm::clear(U_new);
 
-	//Solving with SuperLU method
-	gmm::SuperLU_solve(A, U_new, F_N, cond);
+	//--------------------------------------	 A, U_new, F_N, cond
+	
+	if ( descr.SOLVE_METHOD == "GMRES" ) {
+	  // Iterative solver //
+		gmm::iteration iter(descr.RES);  // iteration object with the max residu
+		iter.set_noisy(1);               // output of iterations (2: sub-iteration)
+		iter.set_maxiter(descr.MAXITER); // maximum number of iterations
+
+		
+		gmm::identity_matrix PM; // no precond
+		#ifdef M3D1D_VERBOSE_
+		cout << "  Applying the Generalized Minimum Residual method to iter_solve... " << endl;
+		#endif
+		
+		vector_type U_new_gm; 
+	        vector_type U_old_gm;
+		vector_type res_U; 
+                gmm::resize(U_new_gm, dof.tot()); gmm::clear(U_new_gm);
+	        gmm::resize(U_old_gm, dof.tot()); gmm::clear(U_old_gm);
+		gmm::resize(res_U, dof.tot()); gmm::clear(res_U);
+	        vector_type F_new_gm;
+	        gmm::resize(F_new_gm, dof.tot()); gmm::clear(F_new_gm);
+                vector_type F_mod;
+                size_type restart = 50;
+                int max_iter=6;
+		int iter_fixp=0;
+                vector_type RES_SOL(max_iter);
+                scalar_type epsSol=1E-8; //descr.epsSol;
+	        scalar_type resSol; //epsSol*100;
+                gmm::iteration iter_gm(descr.RES);  // iteration object with the max residu
+                bool RK=1;
+                
+		gmm::copy(U_new_gm,U_old_gm);gmm::copy(F_N,F_new_gm);
+		
+                        //Extracting matrix
+                gmm::csr_matrix<double> Mtt;  gmm::csr_matrix<double> Btt;
+                gmm::csr_matrix<double> Qvt;  gmm::csr_matrix<double> Qtv;
+		gmm::csr_matrix<double> Mvv;
+			//cout << " starting copying" << endl;
+                        // mass matrix tissue
+                gmm::copy(gmm::sub_matrix(A, gmm::sub_interval(0 , dof.Ut()),
+                                              gmm::sub_interval(0 , dof.Ut())), Mtt); 
+
+                        // coupling tissue
+                gmm::copy(gmm::sub_matrix(A, gmm::sub_interval(dof.Ut(), dof.Pt()),
+                                              gmm::sub_interval(dof.Ut(), dof.Pt())), Btt); 
+
+                gmm::copy(gmm::sub_matrix(A, gmm::sub_interval(dof.Ut()+dof.Pt()+dof.Uv(), dof.Pv()),
+                                              gmm::sub_interval(dof.Ut(), dof.Pt())), Qvt); 
+                gmm::copy(gmm::sub_matrix(A, gmm::sub_interval(dof.Ut(), dof.Pt()),
+			                      gmm::sub_interval(dof.Ut()+dof.Pt()+dof.Uv(), dof.Pv())), Qtv); 	
+                gmm::copy(gmm::sub_matrix(A, gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()),
+			                      gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv())), Mvv); 	
+					      
+		#ifdef M3D1D_VERBOSE_
+		cout << "-----ZZZZZ ----- starting fix point" << endl;
+
+                cout << " starting preconditioning" << endl;
+	        #endif
+	        darcy_precond< gmm::csr_matrix<double>> precond(Mtt, mf_Pt, mimt);
+	        //darcy_precond_vessel< gmm::csr_matrix<double>> precond_vessel(Mvv, mf_Pv, mimv); // to decomment for vessel preconditioning
+	        gmm::iteration iterv_gm(descr.RES);
+	 
+	 
+	 // print matrix 
+        //cout << " starting printing matrix ..........!!!!!!!!!!!!!!!!!! ............" << endl;
+	//gmm::MatrixMarket_IO::write("matrix", AM); 	
+		
+        while(RK &&  iter_fixp < max_iter)
+	        {	
+// -> vessel solution
+               // modified rhs +Bvt*pt^k-1
+	        
+		iter_gm.set_iteration(0);
+		#ifdef M3D1D_VERBOSE_
+		cout << "-----ZZZZZ ----- begin of while" << iter_gm.get_iteration() << " iterations." << endl;
+		#endif
+                gmm::resize(F_mod, dof.Pv());
+                gmm::mult(Qvt,gmm::sub_vector(U_old_gm,gmm::sub_interval(dof.Ut(),dof.Pt())),F_mod);
+                gmm::add(gmm::scaled(F_mod,-1),gmm::sub_vector(F_new_gm,gmm::sub_interval(dof.Ut()+dof.Pt()+dof.Uv(), dof.Pv())));
+                scalar_type cond;
+		#ifdef M3D1D_VERBOSE_
+		cout << "-----ZZZZZ ----- starting SuperLU vessel" << endl;
+		#endif
+		
+			
+		double time3 = gmm::uclock_sec();
+                 gmm::SuperLU_solve(gmm::sub_matrix(A, gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv()),
+                                         gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv()))  , 
+                                    gmm::sub_vector(U_new_gm, 
+                                            gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv())),
+                                    gmm::sub_vector(F_new_gm, 
+                                            gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv())), cond);
+                #ifdef M3D1D_VERBOSE_
+                cout << "-----ZZZZZ ----- time to solveSuperLu vessel::gmm: " << gmm::uclock_sec() - time3 << " seconds\n";
+                #endif
+		// to decomment for use gmres in the vessel problem
+/*               vector_type Uv_new; 
+		gmm::resize(Uv_new,dof.Uv()+dof.Pv()); gmm::clear(Uv_new);
+		gmm::copy(gmm::sub_vector(U_new,gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv())),Uv_new);
+		iterv.set_iteration(0);
+		double time3 = gmm::uclock_sec();
+               gmm::gmres(
+		           gmm::sub_matrix(AM, gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv()),
+                                      gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv())),
+			   Uv_new,
+			   gmm::sub_vector(F_new, gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv())),
+			   precond_vessel,
+			   restart,iterv);
+	       cout << "-----ZZZZZ ----- ... time to solveGmres vessel::gmm: " << gmm::uclock_sec() - time3 << " seconds\n";
+               gmm::copy(Uv_new , gmm::sub_vector(U_new,gmm::sub_interval(dof.Ut()+dof.Pt(),dof.Uv()+dof.Pv())));
+	       cout << "  .ZZZZZ .. vessel .. converged in " << iterv.get_iteration() << " iterations." << endl;*/ 
+	    
+	    
+	    // -> tissue soluition 
+               // building the preconditioner 
+
+               // GMRES 
+	       gmm::clear(F_mod);
+               gmm::resize(F_mod, dof.Pt());
+               gmm::mult(Qtv,gmm::sub_vector(U_new_gm,gmm::sub_interval(dof.Ut()+dof.Pt()+dof.Uv(),dof.Pv())),F_mod);
+               gmm::add(gmm::scaled(F_mod,-1) , gmm::sub_vector(F_new_gm,gmm::sub_interval(dof.Ut(),dof.Pt())));
+               
+ 
+	       
+	       //cout << " copying vectors" << endl;
+                 
+               
+
+			    
+		vector_type Ut_new_gm; 
+		gmm::resize(Ut_new_gm, dof.Ut()+dof.Pt()); gmm::clear(Ut_new_gm);
+		gmm::copy(gmm::sub_vector(U_new_gm,gmm::sub_interval(0,dof.Ut()+dof.Pt())),Ut_new_gm);	    
+		vector_type Ft_gm;     
+		gmm::resize(Ft_gm, dof.Ut()+dof.Pt()); gmm::clear(Ft_gm);
+		gmm::copy(gmm::sub_vector(F_new_gm,gmm::sub_interval(0,dof.Ut()+dof.Pt())),Ft_gm);
+// WARNING DO NOT PASS AS INTERVAL THE VECTORS
+                #ifdef M3D1D_VERBOSE_
+                cout << "-----ZZZZZ ----- starting gmres tissue" << endl;
+		#endif
+		//gmm::iteration iter(descr.RES); 
+		double time4 = gmm::uclock_sec();
+		gmm::gmres(
+		           gmm::sub_matrix(A, 
+					   gmm::sub_interval(0,dof.Ut()+dof.Pt()),
+					   gmm::sub_interval(0,dof.Ut()+dof.Pt())) ,
+			   Ut_new_gm,
+			   Ft_gm,
+			   precond, // precond
+			   restart,iter_gm);
+		
+			   
+                //gmm::SuperLU_solve(gmm::sub_matrix(AM, 
+ 		//      	     gmm::sub_interval(0,dof.Ut()+dof.Pt()),
+ 	        // 		     gmm::sub_interval(0,dof.Ut()+dof.Pt())) ,
+ 	        //		     Ut_new,
+ 	        //		     Ft, cond);
+	        #ifdef M3D1D_VERBOSE_
+		cout << "-----ZZZZZ ----- ... time to solveGmres tissue::gmm: " << gmm::uclock_sec() - time4 << " seconds\n";	   
+		#endif	   
+			   
+			   
+		gmm::copy(Ut_new_gm, gmm::sub_vector(U_new_gm,gmm::sub_interval(0,dof.Ut()+dof.Pt())));
+			    
+                #ifdef M3D1D_VERBOSE_
+                cout << "-----ZZZZZ ----- ... iteration to solve fix point::gmm: " << iter_fixp+1 <<"\n";
+                #endif
+                //Solution residual
+		gmm::add(U_new_gm,gmm::scaled(U_old_gm,-1),res_U); 
+		resSol=gmm::vect_norm2(res_U)/(gmm::vect_norm2(U_old_gm)+1e-18);
+                RK = resSol >  epsSol;
+                iter_fixp++;
+
+                gmm::copy(U_new_gm,U_old_gm);
+                gmm::copy(F_N, F_new_gm);
+                #ifdef M3D1D_VERBOSE_
+                cout << "  .ZZZZZ .. tissue gmres converged in " << iter_gm.get_iteration() << " iterations." << endl; 		
+                #endif
+		}
+
+                gmm::copy(U_old_gm,U_new);
+	}
+	else if ( descr.SOLVE_METHOD == "SuperLU" ) 	//Solving with SuperLU method
+ 	gmm::SuperLU_solve(A, U_new, F_N, cond);
+ 	
+	//--------------------------------------
+	
 	//cout << "Old Pt is " << gmm::sub_vector(U_O, gmm::sub_interval(dof.Ut(), dof.Pt())) << endl;
 
 	//UNDER-RELAXATION
@@ -1259,7 +1829,7 @@ problem3d1d::solve_fixpoint(void)
         vector_type auxOSt(dof.Pt());
         vector_type auxOSv(dof.Pv());
         vector_type auxCM(dof.Pt()); gmm::clear(auxCM);
-	Gnuplot gp;
+	// Gnuplot gp;
 	vector_type RES_SOL(max_iteration), RES_CM(max_iteration);
 
 	// Extracting matrices Bvt, Bvv
@@ -1286,7 +1856,7 @@ problem3d1d::solve_fixpoint(void)
 
 	// Opening file to save number of iteration and residual
 	std::ofstream SaveResidual;
-	SaveResidual.open("./vtk/Residuals.txt");	
+	SaveResidual.open(descr.OUTPUT+"Residuals.txt");	
 
 	gmm::copy(UM,U_old);
 
@@ -1335,7 +1905,7 @@ while(RK && iteration < max_iteration)
 		if(RK && iteration < max_iteration && print_res && (iteration % iteration_save) == 0)
 				{
 				export_vtk();
-				cout << "You saved solution at iteration " << iteration+1 << endl;
+				cout << "Solution at iteration " << iteration+1 << " saved" << endl;
 				cout << "TFR                 = " << TFR << endl;
 				cout << "Lymphatic Flow Rate = " << FRlymph << endl;
 				cout << "Flow Rate of cube   = " << FRCube << endl;
@@ -1364,16 +1934,17 @@ while(RK && iteration < max_iteration)
 			cout << "Step n°:" << iteration << " Solution Residual = " << resSol << "\t Mass Residual = " << fabs(resCM) << endl;
 			cout << "\t\t\t\t\t\t\t      Time: " <<  ((float)t)/CLOCKS_PER_SEC << " s "<< endl;
 					}
+			cout << "********************************************************" << endl;
 
 	gmm::copy(U_new,U_old);
 
 	//plotting residuals
 	RES_SOL[iteration-1]=fabs(resSol);
 	RES_CM[iteration-1]=fabs(resCM);
-	gp << "set logscale y; set xlabel 'iteration';set ylabel 'residual'; plot '-' w lines title 'Solution Residual', '-' w lines title 'Mass Conservation Residual'\n";
-	gp.send1d(RES_SOL);
-	gp.send1d(RES_CM);
-	gp.flush();
+// 	gp << "set logscale y; set xlabel 'iteration';set ylabel 'residual'; plot '-' w lines title 'Solution Residual', '-' w lines title 'Mass Conservation Residual'\n";
+// 	gp.send1d(RES_SOL);
+// 	gp.send1d(RES_CM);
+// 	gp.flush();
 
 	//De-allocate memory
 	gmm::clear(F_LF);
@@ -1515,6 +2086,41 @@ problem3d1d::export_vtk(const string & suff)
 	exp_Pt.exporting(mf_Pt);
 	exp_Pt.write_mesh();
 	exp_Pt.write_point_data(mf_Pt, Pt, "Pt");
+
+// ----------------------
+        if (PARAM.int_value("TEST_RHS")) {
+	
+	// def solPtDiff
+        vector_type sol_Pt_diff(dof.Pt());
+	interpolation_function(mf_Pt, sol_Pt_diff, sol_pt);
+	gmm::add(Pt,gmm::scaled(sol_Pt_diff,-1.0),sol_Pt_diff); // Pt-sol -> sol
+
+        for (size_type k=0; k<dof.Pt(); k++)
+			sol_Pt_diff[k]=fabs(sol_Pt_diff[k]);
+
+	vtk_export vtk_sol_Pt_diff(descr.OUTPUT+"sol_Pt_diff.vtk");
+	vtk_sol_Pt_diff.exporting(mf_coeft);
+	vtk_sol_Pt_diff.write_mesh();
+	vtk_sol_Pt_diff.write_point_data(mf_coeft, sol_Pt_diff, "sol_Pt_diff");}
+	
+	        if (PARAM.int_value("TEST_RHS")) {
+	
+	// def solPtDiff
+        vector_type sol_Pt_diff(dof.Pt());
+	interpolation_function(mf_Pt, sol_Pt_diff, sol_pt);
+	gmm::add(Pt,gmm::scaled(sol_Pt_diff,-1.0),sol_Pt_diff); // Pt-sol -> sol
+
+        for (size_type k=0; k<dof.Pt(); k++)
+			sol_Pt_diff[k]=fabs(sol_Pt_diff[k]);
+
+	vtk_export vtk_sol_Pt_diff(descr.OUTPUT+"sol_Pt_diff.vtk");
+	vtk_sol_Pt_diff.exporting(mf_coeft);
+	vtk_sol_Pt_diff.write_mesh();
+	vtk_sol_Pt_diff.write_point_data(mf_coeft, sol_Pt_diff, "sol_Pt_diff");}
+	
+	
+
+// ----------------------
 
 	#ifdef M3D1D_VERBOSE_
 	cout << "  Exporting Lymphatic Drainage ..." << endl;

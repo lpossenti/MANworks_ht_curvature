@@ -311,6 +311,7 @@ template<typename VEC>
 void
 import_network_radius
 	(VEC & Radius,
+	 //GR VEC & Radius_i,
  	 std::istream & ist, 
  	 const mesh_fem & mf_data
  	 ) 
@@ -338,6 +339,9 @@ import_network_radius
 		for (getfem::mr_visitor mrv(mf_data.linked_mesh().region(b)); !mrv.finished(); ++mrv)
 			for (auto i : mf_data.ind_basic_dof_of_element(mrv.cv()))
 				Radius[i] = Rdata[b];
+
+	/*for (auto r:Rdata)
+		Radius_i.emplace_back(r);GR*/
 }
 
 
