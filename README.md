@@ -1,11 +1,11 @@
 # Mixed Finite Element Methods for Coupled 3D/1D Fluid Problems
 #### *Politecnico di Milano* (ITALY)
 
-**Author** : Luca Possenti, Simone Di Gregorio 
+**Authors** :  Luca Possenti, Simone Di Gregorio, Giorgio Raimondi, Fannie Gerosa
 
 **Mailto** : <luca.possenti@polimi.it>
 
-**Date**   : July 2017
+**Date**   : January 2018
 
 -------------------------------------------------------
 ## How to install and run the program
@@ -17,16 +17,21 @@
 - `lib/`     : Main library (to be generated)
 
 - `src/`     : Example sources
-  - `1_uncoupled/`    			: solve the uncoupled 1d and 3d problems
-  - `2_singlebranch/` 			: solve the coupling with single-vessel network
-  - `3_Ybifurcation/` 			: solve the problem with Y-shaped network - bifurcation
-  - `4_anastomosis/`  			: solve the problem with Y-shaped network - anastomosis
-  - `5_rhombus/`	  			: solve the problem with rhombus network
-  - `6_splitted_singlebranch`	: solve the problem splitted single-vessels
+  - 1_uncoupled/ : solve the uncoupled 1d and 3d problems
+  - 2_singlebranch/ : solve the coupling with single-vessel network
+  - 3_Ybifurcation/ : solve the problem with Y-shaped network - bifurcation
+  - 4_anastomosis/ : solve the problem with Y-shaped network - anastomosis
+  - 5_rhombus/	: solve the problem with rhombus network
+  - 6_splitted_singlebranch	: solve the problem splitted single-vessels
+  - 7_curved_singleBranch: solve the problem with a curved single-vessel network
+  - 8_curved_bifurcation: solve the problem with Y-shaped network - bifurcation
+  - 9_voronoi_network: solve the problem with a complex network
 
 - `config.mk`: Specify the variable GETFEM_PREFIX for GetFEM++ library
 
 - `Makefile` : Instruction to install the project (see INSTALLATION)
+
+- 'Utilities' : other files for problem set up
 
 ## INSTALLATION
 ### Prerequisites
@@ -35,20 +40,17 @@ You need the open source finite element library "GetFEM++"
 
 See <http://download.gna.org/getfem/html/homepage>
 
-Version >= 4.2 is preferible
+Version >= 5.0 is preferible
 
-You must modify the path to the GetFEM library in `config.mk`:
+You have to modify the path to the GetFEM library in `config.mk`:
 ``` 
 GETFEM_PREFIX=/home/.../path/to/.../getfem
 ``` 
 
 Alternatively, at MOX cluster use the `module.sh` file:
 ``` 
-$ source module.sh
+$ source configure.sh
 ``` 
-
-Also GNUPLOT is required: https://sourceforge.net/projects/gnuplot/files/gnuplot/
-See the GNUPLOT_Istruzioni_installazione to install.
 
 BEWARE: 
 Recall to add the library path to LD_LIBRARY_PATH. Example:
@@ -56,8 +58,12 @@ Recall to add the library path to LD_LIBRARY_PATH. Example:
 $ export LD_LIBRARY_PATH=/home/...path/to.../getfem/lib
 
 ```
+Also SAMG LECENCE is required.
 
-
+'GNUPLOT' : 
+GNUPLOT is NOT required, but it can be used to visualize residuals. 
+To use it, uncomment lines within the code and see the GNUPLOT_Istruzioni_installazione to install.
+https://sourceforge.net/projects/gnuplot/files/gnuplot/
 ======================
 
 ### Installation
@@ -72,11 +78,11 @@ $ make -C include/
 ``` 
 Then, it calls the inner makefiles provided for all examples.
 
-It is also possible to build a single example, e.g. "1_uncoupled", with:
+It is also possible to build a single example, e.g. "2_singlebranch", with:
 ``` 
 $ make library
 
-$ make -C src/1_uncoupled
+$ make -C src/2_singlebranch
 ``` 
 
 BEWARE: 
@@ -134,9 +140,9 @@ In addition the external Makefile (./Makefile) has the following options:
 - library    : build the library from files in include/
 
 ## RUN EXAMPLES
-To run a specif example, go to the related subdirectory
+To run a specific example, go to the related subdirectory
 ``` 
-$ cd src/3_Yshaped
+$ cd src/2_singlebranch
 ``` 
 Build the program
 ``` 
