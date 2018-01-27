@@ -1,1 +1,5 @@
-GETFEM_PREFIX=/home/luca/Documenti/getfem
+GETFEM_PREFIX=$(mkGetfemInc)/../
+CXXFLAGS += -I${SAMG}/
+LFLAGS += -L/opt/lib/samg/
+CXXFLAGS+= -DSAMG_UNIX_LINUX -DSAMG_LCASE_USCORE -DPYRAMID_TRIANGULAR_FACETS
+LIBS += -lamg -liomp5

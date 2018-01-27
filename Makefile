@@ -12,15 +12,12 @@
 #   DATE        : November 2015
 # ====================================================================
 
-.PHONY: all doc clean distclean library
+.PHONY: all doc clean distclean library fast
 
 all: library
-	$(MAKE) -C src/1_uncoupled
-	$(MAKE) -C src/2_singlebranch
-	$(MAKE) -C src/3_bifurcation
-	$(MAKE) -C src/4_anastomosis
-	$(MAKE) -C src/5_rhombus
-	$(MAKE) -C src/6_splitted_singlebranch
+	$(MAKE) -C src/Voronoi_Network
+	$(MAKE) -C src/Single_branch
+	$(MAKE) -C src/Bifurcation
 
 library: 
 	$(MAKE) -C include
@@ -35,19 +32,21 @@ pdf: doc
 clean:
 	$(RM) -r *~ *.log
 	$(MAKE) -C include clean
-	$(MAKE) -C src/1_uncoupled clean
-	$(MAKE) -C src/2_singlebranch clean
-	$(MAKE) -C src/3_bifurcation clean
-	$(MAKE) -C src/4_anastomosis clean
-	$(MAKE) -C src/5_rhombus clean
-	$(MAKE) -C src/6_splitted_singlebranch clean
+	$(MAKE) -C src/Voronoi_Network clean
+	$(MAKE) -C src/Single_branch clean
+	$(MAKE) -C src/Bifurcation clean
 
 distclean: clean
 	$(RM) -r doc/*
 	$(MAKE) -C include distclean
-	$(MAKE) -C src/1_uncoupled distclean
-	$(MAKE) -C src/2_singlebranch distclean
-	$(MAKE) -C src/3_bifurcation distclean
-	$(MAKE) -C src/4_anastomosis distclean
-	$(MAKE) -C src/5_rhombus distclean
-	$(MAKE) -C src/6_splitted_singlebranch distclean
+	$(MAKE) -C src/Voronoi_Network distclean
+	$(MAKE) -C src/Single_branch distclean
+	$(MAKE) -C src/Bifurcation distclean
+
+fast:
+	$(MAKE) -C include fastclean
+	$(MAKE) -C include
+	$(MAKE) -C src/Voronoi_Network fastclean
+	$(MAKE) -C src/Single_branch fastclean
+	$(MAKE) -C src/Bifurcation fastclean
+
