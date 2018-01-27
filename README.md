@@ -31,7 +31,7 @@
 
 - `Makefile` : Instruction to install the project (see INSTALLATION)
 
-- `Utilities`: other files for problem set up
+- `utilities`: other files for problem set up
 
 ## INSTALLATION
 ### Prerequisites
