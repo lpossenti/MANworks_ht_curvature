@@ -17,14 +17,10 @@
 - `lib/`     : Main library (to be generated)
 
 - `src/`     : Example sources
-  - 1_uncoupled/ : solve the uncoupled 1d and 3d problems
   - 2_singlebranch/ : solve the coupling with single-vessel network
-  - 3_Ybifurcation/ : solve the problem with Y-shaped network - bifurcation
-  - 4_anastomosis/ : solve the problem with Y-shaped network - anastomosis
-  - 5_rhombus/	: solve the problem with rhombus network
-  - 6_splitted_singlebranch	: solve the problem splitted single-vessels
+  - 3_Ybifurcation/ : solve the problem with Y-shaped bifurcation
   - 7_curved_singleBranch: solve the problem with a curved single-vessel network
-  - 8_curved_bifurcation: solve the problem with Y-shaped network - bifurcation
+  - 8_curved_bifurcation: solve the problem with Y-shaped bifurcation
   - 9_voronoi_network: solve the problem with a complex network
 
 - `config.mk`: Specify the variable GETFEM_PREFIX for GetFEM++ library
