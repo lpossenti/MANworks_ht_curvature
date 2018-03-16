@@ -28,14 +28,16 @@
 //#define SPARSE_INTERFACE
 
 
-#define DIRECT_SOLVER 
-//#define AMG_STAND_ALONE
-//#define AMG_ACCELERATED
+
 
 #define FIXP_GMRES // to comment in case of uncoupled system
 
+#ifdef WITH_SAMG
 #include "samg.h"
-
+#define DIRECT_SOLVER 
+//#define AMG_STAND_ALONE
+//#define AMG_ACCELERATED
+#endif
 /* default 4 Byte integer types */
 #ifndef APPL_INT
 #define APPL_INT int
@@ -1356,7 +1358,7 @@ problem3d1d::solve(void)
 
 	bool problem3d1d::solve_samg (void)
 	{
-		
+#ifdef WITH_SAMG	
 #ifdef M3D1D_VERBOSE_
 		cout << "Solving the monolithic system ... " << endl;
 #endif
@@ -1429,8 +1431,11 @@ gmm::copy(amg.getsol(),gmm::sub_vector(UM,gmm::sub_interval(0,dim_matrix)));
 #endif
 	
 export_vtk();
+#else // with samg
+std::cout<< "Error you are trying to solve with samg calling solve_samg"<<std::endl;
+#endif
 			return true;
-			}; // end of solve
+			}; // end of solve_samg
 
 
 

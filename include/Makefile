@@ -14,8 +14,10 @@
 include ../config.mk
 
 CPPFLAGS=-I. -I$(mkGetfemInc) -I$(mkBoostInc)
-CXXFLAGS+=-std=c++14 
-#-D=M3D1D_VERBOSE_
+CXXFLAGS+=-std=c++14
+ifeq ($(WITH_SAMG), 1)
+CXXFLAGS+=-DWITH_SAMG 
+endif
 ifeq ($(DEBUG),yes)
   OPTFLAGS=-g -Wall
 else
