@@ -1012,7 +1012,7 @@ while(RK && iteration < max_iteration)
 	if(!LINEAR_LYMPH()){
 	//Adding lymphatic contribution
 	F_new=problem3d1d::modify_vector_LF(U_old,F_new);
-	gmm::copy(F_new,FM);
+	//gmm::copy(F_new,FM); wrong here. Simone & Luca
 	}
 
 //d-1 find the new solution as AM *U(k+1) = F(k)
