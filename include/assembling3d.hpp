@@ -110,7 +110,7 @@ asm_tissue_bc
 	 const mesh_fem & mf_data,
 	 const std::vector<getfem::node> & BC,
 	 const VEC & P0,
-	 const VEC & coef
+         const VEC & coef
 	 )
 {
 	GMM_ASSERT1(mf_u.get_qdim()>1,  "invalid data mesh fem (Qdim>1 required)");
@@ -118,6 +118,9 @@ asm_tissue_bc
 
 	std::vector<scalar_type> G(mf_data.nb_dof());
 	std::vector<scalar_type> ones(mf_data.nb_dof(), 1.0);
+        std::vector<scalar_type> P0_face(P0.size());
+        std::vector<scalar_type> beta_face(P0.size());
+
 
 	// Define assembly for velocity bc (\Gamma_u)
 	generic_assembly 
@@ -127,8 +130,8 @@ asm_tissue_bc
 	assemU.push_mi(mim);
 	assemU.push_mf(mf_u);
 	assemU.push_mf(mf_data);
-	assemU.push_data(P0);
-	assemU.push_data(coef);
+        assemU.push_data(P0_face);
+        assemU.push_data(beta_face);
 	assemU.push_vec(F);
 	assemU.push_mat(M);
 	// Define assembly for pressure bc (\Gamma_p)
@@ -150,6 +153,10 @@ asm_tissue_bc
 			assemP.assembly(mf_u.linked_mesh().region(BC[f].rg));
 		} 
 		else if (BC[f].label=="MIX") { // Robin BC
+                       //Luca MIT
+                        std::vector<scalar_type> onesMIX(P0.size(), 1.0);
+                        gmm::copy(gmm::scaled(onesMIX, BC[f].value), P0_face);
+                        gmm::copy(gmm::scaled(onesMIX, 1/coef[f]), beta_face);
 			assemU.assembly(mf_u.linked_mesh().region(BC[f].rg));
 		}
 		else if (BC[f].label=="INT") { // Internal Node

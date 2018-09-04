@@ -28,14 +28,16 @@
 //#define SPARSE_INTERFACE
 
 
-#define DIRECT_SOLVER 
-//#define AMG_STAND_ALONE
-//#define AMG_ACCELERATED
+
 
 #define FIXP_GMRES // to comment in case of uncoupled system
 
+#ifdef WITH_SAMG
 #include "samg.h"
-
+#define DIRECT_SOLVER 
+//#define AMG_STAND_ALONE
+//#define AMG_ACCELERATED
+#endif
 /* default 4 Byte integer types */
 #ifndef APPL_INT
 #define APPL_INT int
@@ -91,6 +93,7 @@ problem3d1d::init(int argc, char *argv[])
 	import_data();
 	//3. Import mesh for tissue (3D) and vessel network (1D)
 	build_mesh();
+        cout << "after mesh" << endl;
 	//4. Set finite elements and integration methods
 	set_im_and_fem();
 	//5. Build problem parameters
@@ -149,6 +152,7 @@ problem3d1d::build_mesh(void)
 
 	bool Import=PARAM.int_value("IMPORT_CURVE");
 	bool Curve=PARAM.int_value("CURVE_PROBLEM");
+
 
 	if(Curve && !Import){
 		import_pts_file(ifs, meshv, BCv, nb_vertices, descr.MESH_TYPEV, param);
@@ -572,7 +576,7 @@ try {
 	cout << "  Branches:   " << nb_branches << endl
 		 << "  Vertices:   " << nn.size()+1 << endl;
 	cout << "  Extrema:    " << extrema << endl;	  
-	for (size_type i=0; i<BCv.size(); ++i)
+        /*for (size_type i=0; i<BCv.size(); ++i)
 		cout << "    -  label=" << BCv[i].label 
 			 << ", value=" << BCv[i].value << ", ind=" << BCv[i].idx 
 			 << ", rg=" << BCv[i].rg << ", branches=" << BCv[i].branches << endl; 
@@ -580,7 +584,7 @@ try {
 	for (size_type i=0; i<Jv.size(); ++i)
 		cout << "    -  label=" << Jv[i].label 
 			 << ", value=" << Jv[i].value << ", ind=" << Jv[i].idx 
-			 << ", rg=" << Jv[i].rg << ", branches=" << Jv[i].branches << endl; 
+                         << ", rg=" << Jv[i].rg << ", branches=" << Jv[i].branches << endl; */
 	cout << "---------------------------------------- "   << endl;
 	#endif
 
@@ -816,15 +820,22 @@ problem3d1d::assembly_rhs(void)
         vector_type Pl_aux(dof.Pt());
 
 	// Coefficients for tissue BCs
-	scalar_type bcoef  = PARAM.real_value("BETA", "Coefficient for mixed BC");
+	//scalar_type bcoef  = PARAM.real_value("BETA", "Coefficient for mixed BC");
 	scalar_type p0coef = PARAM.real_value("P0"); // default: 0
 
 	#ifdef M3D1D_VERBOSE_
 	cout << "  Building tissue boundary term ..." << endl;
 	#endif
-	vector_type beta(dof.coeft(), 1.0/bcoef);
+	vector_type beta(2*DIMT, 1.0);
 	vector_type P0(dof.coeft(), p0coef);
 	vector_type P0_vel(mf_coefv.nb_dof(), p0coef);
+	//Luca MIT
+	string values_beta_string = PARAM.string_value("BCbeta", "Array of tissue boundary beta coefficients");
+        vector<string> beta_values = split(values_beta_string, ' ');
+	for (unsigned f=0; f<2*DIMT; ++f) {
+		beta[f] = std::stof(beta_values[f]);
+	}
+	
 	
 	if (PARAM.int_value("TEST_RHS")) {
 		#ifdef M3D1D_VERBOSE_
@@ -847,8 +858,9 @@ problem3d1d::assembly_rhs(void)
 	cout << "  Building vessel boundary term ..." << endl;
 	#endif
 	sparse_matrix_type Mvv(dof.Uv(), dof.Uv());
+
 	asm_network_bc(Mvv, Fv, 
-			mimv, mf_Uvi, mf_coefv, BCv, P0_vel, param.R(), bcoef);
+                        mimv, mf_Uvi, mf_coefv, BCv, P0_vel, param.R());
 	gmm::add(Mvv, 
 		gmm::sub_matrix(AM,
 			gmm::sub_interval(dof.Ut()+dof.Pt(), dof.Uv()),
@@ -1356,7 +1368,7 @@ problem3d1d::solve(void)
 
 	bool problem3d1d::solve_samg (void)
 	{
-		
+#ifdef WITH_SAMG	
 #ifdef M3D1D_VERBOSE_
 		cout << "Solving the monolithic system ... " << endl;
 #endif
@@ -1429,8 +1441,11 @@ gmm::copy(amg.getsol(),gmm::sub_vector(UM,gmm::sub_interval(0,dim_matrix)));
 #endif
 	
 export_vtk();
+#else // with samg
+std::cout<< "Error you are trying to solve with samg calling solve_samg"<<std::endl;
+#endif
 			return true;
-			}; // end of solve
+			}; // end of solve_samg
 
 
 
