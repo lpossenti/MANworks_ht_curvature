@@ -15,9 +15,7 @@
 .PHONY: all doc clean distclean library fast
 
 all: library
-	$(MAKE) -C src/Voronoi_Network
-	$(MAKE) -C src/Single_branch
-	$(MAKE) -C src/Bifurcation
+	$(MAKE) -C src/*
 
 library: 
 	$(MAKE) -C include
@@ -32,9 +30,7 @@ pdf: doc
 clean:
 	$(RM) -r *~ *.log
 	$(MAKE) -C include clean
-	$(MAKE) -C src/Voronoi_Network clean
-	$(MAKE) -C src/Single_branch clean
-	$(MAKE) -C src/Bifurcation clean
+	$(MAKE) -C src/*
 
 distclean: clean
 	$(RM) -r doc/*

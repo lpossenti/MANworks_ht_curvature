@@ -36,7 +36,7 @@ You need the open source finite element library "GetFEM++"
 
 See <http://download.gna.org/getfem/html/homepage>
 
-Version >= 5.1 is necessary
+Version >= 5.0 is preferible
 
 You have to modify the path to the GetFEM library in `config.mk`:
 ``` 
@@ -186,4 +186,4 @@ OS         : Ubuntu 14.04 LTS 64-bit (Tested also on Centos)
 
 Compiler   : g++-5.2.1
 
-GetFEM lib : 5.2
+GetFEM lib : 5.0
