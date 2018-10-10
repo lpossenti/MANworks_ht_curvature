@@ -12,7 +12,7 @@
 #   DATE        : April 2015
 # ====================================================================
 
-CPPFLAGS=-I. -I$(mkGetfemInc)
+CPPFLAGS=-I. -I$(mkGetfemInc) -I$(mkBoostInc)
 CXXFLAGS=-std=c++11 -D=M3D1D_VERBOSE_
 ifeq ($(DEBUG),yes)
   OPTFLAGS=-g -Wall

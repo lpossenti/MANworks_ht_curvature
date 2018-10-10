@@ -89,6 +89,7 @@ import_pts_file(
 
 	size_type globalBoundaries = 0;
 
+
 	while (bgeot::read_until(ist, "BEGIN_ARC")) {
 	
 		Nb++;
@@ -183,7 +184,6 @@ import_pts_file(
 			} 
 						
 		} /* end of inner while */
-		
 		// Insert the arc into the 1D mesh and build a new region for the corresponding branch
 		// Check validity of branch region
 		GMM_ASSERT1(mh1D.has_region(Nb-1)==0, "Overload in meshv region assembling!");
@@ -217,7 +217,6 @@ import_pts_file(
 		} /* end of inner for */
 		
 	} /* end of outer while */	
-		
 } /* end of import_pts_file */
 
 
@@ -311,6 +310,7 @@ template<typename VEC>
 void
 import_network_radius
 	(VEC & Radius,
+	 //GR VEC & Radius_i,
  	 std::istream & ist, 
  	 const mesh_fem & mf_data
  	 ) 
@@ -338,6 +338,9 @@ import_network_radius
 		for (getfem::mr_visitor mrv(mf_data.linked_mesh().region(b)); !mrv.finished(); ++mrv)
 			for (auto i : mf_data.ind_basic_dof_of_element(mrv.cv()))
 				Radius[i] = Rdata[b];
+
+	/*for (auto r:Rdata)
+		Radius_i.emplace_back(r);GR*/
 }
 
 

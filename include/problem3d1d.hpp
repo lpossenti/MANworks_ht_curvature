@@ -49,6 +49,8 @@
 #include <dof3d1d.hpp>
 #include <descr3d1d.hpp>
 #include <param3d1d.hpp>
+#include <c_mesh1d.hpp>
+#include <c_descr3d1d.hpp>
 //#include <defines.hpp>
 #include <time.h>
 #include <random>
@@ -96,6 +98,7 @@ public:
 		Solve the monolithic system AM*UM=FM (direct or iterative)
 	 */
 	bool solve (void);
+	bool solve_samg (void);
 	bool solve_fixpoint (void);
 	//! Solve the problem with arterial-venous network
 	/*!
@@ -161,6 +164,8 @@ protected:
 	ftool::md_param PARAM;
 	//! Algorithm description strings (mesh files, FEM types, solver info, ...) 
 	descr3d1d descr;
+	//!	Algorithm description strings for curved model
+	c_descr3d1d c_descr;
 	//! Physical parameters (dimensionless)
 	param3d1d param;
 	//! Dimension of the tissue domain (3)

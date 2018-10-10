@@ -7,23 +7,17 @@
 #                    Copyright D. Notaro 2015
 # ====================================================================
 #   FILE        : Makefile
-#   DESCRIPTION : makefile for test simulations
+#   DESCRIPTION : makefile for library installation
 #   AUTHOR      : Domenico Notaro <domenico.not@gmail.com>
-#   DATE        : April 2015
-# ==================================================================== 
+#   DATE        : February 2016
+# ====================================================================
+
 include ../config.mk
 
-CPPFLAGS=-I. -I$(mkGetfemInc) -I$(mkBoostInc)
-CXXFLAGS+=-std=c++14
-ifeq ($(WITH_SAMG), 1)
-CXXFLAGS+=-DWITH_SAMG 
-endif
-ifeq ($(DEBUG),yes)
-  OPTFLAGS=-g -Wall
-else
-  OPTFLAGS=-O3 -march=native
-  CPPFLAGS+=-DNDEBUG
-endif
+CPPFLAGS=-I. -I$(GETFEM_PREFIX)/include
+CXXFLAGS=-std=c++11
+OPTFLAGS=-O3 -DNDEBUG -march=native
+
 LIBDIR=../lib
 LIBNAME=problem3d1d
 LIBFILE=lib$(LIBNAME).a
@@ -32,7 +26,7 @@ LIBSRC=$(wildcard *.cpp)
 LIBOBJS=$(LIBSRC:.cpp=.o)
 LIBHEADERS=$(wildcard *.hpp)
 
-.PHONY: all clean distclean library fastclean
+.PHONY: all clean distclean library
 
 all: library
 	@echo
@@ -44,15 +38,9 @@ library: $(LIBOBJS)
 
 %.o: %.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(OPTFLAGS) -o $@ -c $<
- 
-problem3d1d.cpp: darcy_preconditioner_mon.hpp darcy_preconditioner.hpp darcy_preconditioner_mon_coup.hpp darcy_preconditioner_tissue_coup.hpp
-	@touch $@
 
 clean:
 	$(RM) $(LIBOBJS) *~
 
 distclean: clean
 	$(RM) $(LIBDIR)/$(LIBFILE)
-
-fastclean:
-	$(RM) problemHT.o

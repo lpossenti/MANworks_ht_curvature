@@ -325,10 +325,10 @@ for (size_type bc=0; bc < BC.size(); bc++) {
 		else if (BC[bc].label=="OUT"){
 		}
 		else if (BC[bc].label=="INT") { // Internal Node
-			DAL_WARNING1("internal node passed as boundary.");
+			GMM_WARNING1("internal node passed as boundary.");
 		}
 		else if (BC[bc].label=="JUN") { // Junction Node
-			DAL_WARNING1("junction node passed as boundary.");
+			GMM_WARNING1("junction node passed as boundary.");
 		}
 		else {
 			GMM_ASSERT1(0, "Unknown Boundary Condition"<< BC[bc].label << endl);
@@ -374,12 +374,12 @@ for (size_type i=0; i < mf_h.size(); i++) {
 			size_type last=dof_enum[fine-1];
 			size_type first_u=dofu_enum[0];
 			size_type first=dof_enum[0];
+
 		if (U[i*mf_u[i].nb_dof()+last_u]>0)
 	M[i*mf_h[i].nb_dof()+last][i*mf_h[i].nb_dof()+last]+=pi*Ri*Ri*U[i*mf_u[i].nb_dof()+last_u];	else
 	M[i*mf_h[i].nb_dof()+first][i*mf_h[i].nb_dof()+first]-=pi*Ri*Ri*U[i*mf_u[i].nb_dof()+first_u];
 
 	} /*end of for cicle*/
-
 
 }/* end of asm_HT_out*/
 
