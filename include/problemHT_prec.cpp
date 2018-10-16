@@ -386,7 +386,7 @@ try {
 	// Ckeck network assembly
 	#ifdef M3D1D_VERBOSE_
 	cout << "--- NETWORK ASSEMBLY ------------------ "   << endl;
-	cout << "  Branches:   " << nb_branches << endl
+        /*cout << "  Branches:   " << nb_branches << endl
 		 << "  Vertices:   " << nn.size()+1 << endl;
 	cout << "  Extrema:    " << extrema << endl;	  
 	for (size_type i=0; i<BCv_HT.size(); ++i)
@@ -395,10 +395,10 @@ try {
 			 << ", rg=" << BCv_HT[i].rg << ", branches=" << BCv_HT[i].branches << endl; 
 	cout << "  Junctions: " << junctions << endl;
 	for (size_type i=0; i<Jv_HT.size(); ++i)
-		cout << "    -  label=" << Jv_HT[i].label 
+                cout << "    -  label=" << Jv_HT[i].label
 			 << ", value=" << Jv_HT[i].value << ", ind=" << Jv_HT[i].idx 
-			 << ", rg=" << Jv_HT[i].rg << ", branches=" << Jv_HT[i].branches << endl; 
-	cout << "---------------------------------------- "   << endl;
+                         << ", rg=" << Jv_HT[i].rg << ", branches=" << Jv_HT[i].branches << endl;
+        cout << "---------------------------------------- "   << endl;*/
 	#endif
 
 } 
@@ -1012,7 +1012,7 @@ while(RK && iteration < max_iteration)
 	if(!LINEAR_LYMPH()){
 	//Adding lymphatic contribution
 	F_new=problem3d1d::modify_vector_LF(U_old,F_new);
-	//gmm::copy(F_new,FM); wrong here. Simone & Luca
+        //gmm::copy(F_new,FM);
 	}
 
 //d-1 find the new solution as AM *U(k+1) = F(k)

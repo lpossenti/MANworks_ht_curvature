@@ -1,4 +1,5 @@
 // AMG_Interrface.h
+#ifdef WITH_SAMG
 #ifndef aamg
 #define aamg
 
@@ -47,3 +48,4 @@ APPL_INT nnu_,nna_;
 };
 
 #endif
+#endif // WITH_SAMG

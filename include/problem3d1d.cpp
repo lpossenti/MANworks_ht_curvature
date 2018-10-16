@@ -1353,20 +1353,42 @@ problem3d1d::solve(void)
         gmm::add(Uphi2,Pl_aux,Uphi2);
         //computing flowrate of lymphatic system
 	FRlymph = std::accumulate(Uphi2.begin(), Uphi2.end(), 0.0);
+
+
         //computing flowrate from the cube
-        FRCube = TFR - FRlymph;
+        //FRCube = TFR - FRlymph;
+        vector_type F_cube(dof.Ut());
+        generic_assembly
+        assemU("g=data$1(#1);""V$1(#1)+=g(i).comp(vBase(#1).vBase(#1).Normal())(i,k,:,k,k);");
+        assemU.push_mi(mimt);
+        assemU.push_mf(mf_Ut);
+        assemU.push_data(gmm::sub_vector(UM,gmm::sub_interval(0,dof.Ut())));
+        assemU.push_vec(F_cube);
+        for (size_type f=0; f < BCt.size(); ++f) {
+            assemU.assembly(mf_Ut.linked_mesh().region(BCt[f].rg));
+        }
+        FRCube = std::accumulate(F_cube.begin(), F_cube.end(), 0.0);
+        //From divergence theorem FRcube = Dtt * Ut. (In this case not computed in this way to account for numeric errors)
+        /*scalar_type FRCube2;
+        vector_type aux3(dof.Pt());
+        sparse_matrix_type Dtt (dof.Pt(), dof.Ut());
+        gmm::copy(gmm::sub_matrix(AM,gmm::sub_interval(dof.Ut(), dof.Pt()), gmm::sub_interval(0, dof.Ut())),Dtt);
+        gmm::mult(Dtt,gmm::sub_vector(UM,gmm::sub_interval(0,dof.Ut())),aux3);
+        FRCube2 = std::accumulate(aux3.begin(), aux3.end(), 0.0);
+        cout << "FRcube2 " << FRCube2 << endl;*/
 
 	// De-allocate memory
 	gmm::clear(Bvt); gmm::clear(Bvv);
 	gmm::clear(Pt);  gmm::clear(Pv);  
         gmm::clear(Uphi); gmm::clear(Uphi2);
         gmm:: clear(Mlf); gmm::clear(Pl); gmm::clear(Pl_aux);
-        gmm::clear(DeltaPi);
-	return true;
+        gmm::clear(DeltaPi); gmm::clear(F_cube);
+        //gmm::clear(Dtt); gmm::clear(aux3);
+        return true;
 }
 
 
-	bool problem3d1d::solve_samg (void)
+bool problem3d1d::solve_samg (void)
 	{
 #ifdef WITH_SAMG	
 #ifdef M3D1D_VERBOSE_
@@ -1914,14 +1936,19 @@ while(RK && iteration < max_iteration)
 		TFR = std::accumulate(Uphi.begin(), Uphi.end(), 0.0);
         	//computing flowrate of lymphatic system
 		FRlymph = std::accumulate(F_LF.begin(), F_LF.end(), 0.0);
-        	//computing flowrate from the cube
-        	FRCube = TFR - FRlymph;
+                //computing flowrate from the cube - Divergence th -> Dtt * Ut
+                vector_type aux3(dof.Pt());
+                sparse_matrix_type Dtt (dof.Pt(), dof.Ut());
+                gmm::copy(gmm::sub_matrix(AM,gmm::sub_interval(dof.Ut(), dof.Pt()), gmm::sub_interval(0, dof.Ut())),Dtt);
+                gmm::mult(Dtt,gmm::sub_vector(UM,gmm::sub_interval(0,dof.Ut())),aux3);
+                FRCube = std::accumulate(aux3.begin(), aux3.end(), 0.0);
+                gmm::clear(Dtt); gmm::clear(aux3);
 
 		if(RK && iteration < max_iteration && print_res && (iteration % iteration_save) == 0)
 				{
 				export_vtk();
 				cout << "Solution at iteration " << iteration+1 << " saved" << endl;
-				cout << "TFR                 = " << TFR << endl;
+                                cout << "TFR                 = " << TFR << endl;
 				cout << "Lymphatic Flow Rate = " << FRlymph << endl;
 				cout << "Flow Rate of cube   = " << FRCube << endl;
 				}
@@ -1930,14 +1957,14 @@ while(RK && iteration < max_iteration)
 			resSol=calcolo_Rk(U_new, U_old);
 
 	//Conservation of mass residual
-			gmm::mult(gmm::sub_matrix(AM, 
+                        /*gmm::mult(gmm::sub_matrix(AM,
 						gmm::sub_interval(dof.Ut(), dof.Pt()),
 						gmm::sub_interval(0, dof.tot())),
 						U_new,
 							auxCM);
 			gmm::add(auxOSt,auxCM);
-			gmm::add(F_LF,auxCM);	
-			scalar_type resCM=std::accumulate(auxCM.begin(), auxCM.end(), 0.0)/TFR;
+                        gmm::add(F_LF,auxCM);*/
+                        scalar_type resCM=TFR-FRlymph-FRCube;
 
 	RK=resSol>epsSol || fabs(resCM) > epsCM; // both the residual must reach convergence to exit the "while"
 
@@ -2075,7 +2102,7 @@ problem3d1d::export_vtk(const string & suff)
 		sparse_matrix_type M_RT0_P1(mf_P1.nb_dof(), dof.Ut());
 		sparse_matrix_type M_P1_P1(mf_P1.nb_dof(), mf_P1.nb_dof());
 		vector_type Ut_P1(mf_P1.nb_dof());
-		asm_mass_matrix(M_RT0_P1, mimt, mf_P1, mf_Ut);
+                asm_mass_matrix(M_RT0_P1, mimt, mf_P1, mf_Ut);
 		asm_mass_matrix(M_P1_P1,  mimt, mf_P1, mf_P1);
 		
 		vector_type Utt(mf_P1.nb_dof());
@@ -2412,7 +2439,7 @@ merge_and_solve(problem3d1d & Pba, problem3d1d & Pbv)
 	gmm::clear(Uphi);
 	gmm::mult(Bvt, Pt, Uphi);
 	gmm::mult_add(Bvv, Pv, Uphi);
-	Pbv.TFR = std::accumulate(Uphi.begin(), Uphi.end(), 0.0);
+        Pbv.TFR = std::accumulate(Uphi.begin(), Uphi.end(), 0.0);
 
 	// De-allocate memory
 	gmm::clear(AMav); gmm::clear(UMav); gmm::clear(FMav);

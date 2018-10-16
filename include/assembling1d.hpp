@@ -100,8 +100,8 @@ asm_network_bc
 	 const mesh_fem & mf_data,
 	 const std::vector<getfem::node> & BC,
 	 const VEC & P0,
-	 const VEC & R,
-	 const scalar_type beta
+         const VEC & R
+         //,const scalar_type beta
 	 ) 
 {
 	// Aux data
@@ -124,7 +124,7 @@ asm_network_bc
 			MAT Mi(mf_u[i].nb_dof(), mf_u[i].nb_dof());
 			getfem::asm_mass_matrix(Mi,
 				mim, mf_u[i], BC[bc].rg);
-			gmm::scale(Mi, pi*pi*Ri*Ri*Ri*Ri/beta);				
+                        gmm::scale(Mi, pi*pi*Ri*Ri*Ri*Ri/BC[bc].value);
 			gmm::add(gmm::scaled(Mi, -1.0), 
 				gmm::sub_matrix(M,
 					gmm::sub_interval(start, mf_u[i].nb_dof()),

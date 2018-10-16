@@ -7,7 +7,9 @@
 #include <gmm/gmm_precond_diagonal.h>
 #include <gmm/gmm_superlu_interface.h>
 
+#ifdef WITH_SAMG
 #define USE_SAMG 1
+#endif
 #define USE_MP
 
 #ifdef USE_SAMG

@@ -386,7 +386,7 @@ try {
 	// Ckeck network assembly
 	#ifdef M3D1D_VERBOSE_
 	cout << "--- NETWORK ASSEMBLY ------------------ "   << endl;
-	cout << "  Branches:   " << nb_branches << endl
+        /*cout << "  Branches:   " << nb_branches << endl
 		 << "  Vertices:   " << nn.size()+1 << endl;
 	cout << "  Extrema:    " << extrema << endl;	  
 	for (size_type i=0; i<BCv_HT.size(); ++i)
@@ -397,7 +397,7 @@ try {
 	for (size_type i=0; i<Jv_HT.size(); ++i)
 		cout << "    -  label=" << Jv_HT[i].label 
 			 << ", value=" << Jv_HT[i].value << ", ind=" << Jv_HT[i].idx 
-			 << ", rg=" << Jv_HT[i].rg << ", branches=" << Jv_HT[i].branches << endl; 
+                         << ", rg=" << Jv_HT[i].rg << ", branches=" << Jv_HT[i].branches << endl; */
 	cout << "---------------------------------------- "   << endl;
 	#endif
 

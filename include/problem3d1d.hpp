@@ -116,13 +116,35 @@ public:
 		return asm_mean(mf_Pt, mimt, 
 			gmm::sub_vector(UM, gmm::sub_interval(dof.Ut(), dof.Pt()))); 
 	}
-	//! Compute mean vessel pressure
+        //! Compute mean tissue velocity
+        inline scalar_type mean_Ut (void){
+                return 0;//to be implemented
+        }
+        //! Compute mean vessel pressure
 	inline scalar_type mean_pv (void){ 
 		return asm_mean(mf_Pv, mimv, 
 			gmm::sub_vector(UM, gmm::sub_interval(dof.Ut()+dof.Pt()+dof.Uv(), dof.Pv()))); 
 	}
+        //! Compute mean vessel velocity
+        inline scalar_type mean_uv (void){
+            double avg_uv, leng;
+            avg_uv = 0;
+            leng = 0;
+            double shift = dof.Ut()+dof.Pt();
+            for(size_type i=0; i<nb_branches; ++i){
+                   std::vector<scalar_type> ones(mf_Uvi[i].nb_dof(), 1.0);
+                 avg_uv += (asm_mean_times_measure(mf_Uvi[i], mimv,
+                        gmm::sub_vector(UM, gmm::sub_interval(shift, mf_Uvi[i].nb_dof()))));
+                 leng += asm_mean_times_measure(mf_Uvi[i], mimv, ones);
+                 shift += mf_Uvi[i].nb_dof();
+            }
+            return avg_uv/leng;
+        }
+        //! Compute inlet flow rate
+        inline scalar_type flow_rate (void) { return TFR; };
+
 	//! Compute total flow rate (network to tissue) - pressure
-	inline scalar_type flow_rate (void) { return TFR; };
+        inline scalar_type inlet_flow_rate (void) { return TFR; };
 
         //! Compute total flow rate from cube
         inline scalar_type cube_flow_rate (void) { return FRCube; };

@@ -1,3 +1,4 @@
+#ifdef WITH_SAMG
 #include "AMG_Interface.hpp" 
 #include <memory>
 
@@ -276,7 +277,7 @@ void AMG::convert_matrix(gmm::csr_matrix<scalar_type> A_csr)
 	return;
 }
 
-
+#endif // if def with samg
 
 
 

@@ -241,7 +241,6 @@ import_pts_file(
 					if (tmp.compare("END_ARC") == 0) { thend = true; Nn[Nb-1]--; }
 				} 	
 		}
-		
 		///////////////////////////////////////////////////////////////FINE LETTURA PUNTI MESH
 		
 		//////////////////////////////////////////////////////////////LETTURA VERSORE TANGENTE E CURVATURA
@@ -321,6 +320,7 @@ import_pts_file(
 			ly_t=lpoints[jj][1]-lpoints[ii][1];
 			lz_t=lpoints[jj][2]-lpoints[ii][2];
 			lmod=sqrt(lx_t*lx_t+ly_t*ly_t+lz_t*lz_t);
+
 
 			lx_b.push_back(lx_t/lmod);
 			ly_b.push_back(ly_t/lmod);
@@ -473,7 +473,6 @@ import_pts_file(
 		PARAM & param
 		) 
 {
-
 	size_type Nb = 0; // nb of branches
 	Nn.resize(0); Nn.clear();
 	mh1D.clear();
@@ -593,7 +592,6 @@ import_pts_file(
 				if (tmp.compare("END_ARC") == 0) { thend = true; Nn[Nb-1]--; }
 			} 				
 		} /* end of inner while */
-		
 		// Insert the arc into the 1D mesh and build a new region for the corresponding branch
 		// Check validity of branch region
 		GMM_ASSERT1(mh1D.has_region(Nb-1)==0, "Overload in meshv region assembling!");
@@ -629,10 +627,10 @@ import_pts_file(
 				BCB.idx = ind[1];
 				BCList.push_back(BCB);
 			}
-
 			//Compute Curvature
 			if(ii!=0){
 				KK=curvature3d(lpoints[ll],lpoints[ii],lpoints[jj]);
+
 				if(ii==2){
 					Curv_b.push_back(KK);
 				}
