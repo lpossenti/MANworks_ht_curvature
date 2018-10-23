@@ -1356,8 +1356,8 @@ problem3d1d::solve(void)
 
 
         //computing flowrate from the cube
-        //FRCube = TFR - FRlymph;
-        vector_type F_cube(dof.Ut());
+        FRCube = TFR - FRlymph;
+        /*vector_type F_cube(dof.Ut());
         generic_assembly
         assemU("g=data$1(#1);""V$1(#1)+=g(i).comp(vBase(#1).vBase(#1).Normal())(i,k,:,k,k);");
         assemU.push_mi(mimt);
@@ -1382,7 +1382,7 @@ problem3d1d::solve(void)
 	gmm::clear(Pt);  gmm::clear(Pv);  
         gmm::clear(Uphi); gmm::clear(Uphi2);
         gmm:: clear(Mlf); gmm::clear(Pl); gmm::clear(Pl_aux);
-        gmm::clear(DeltaPi); gmm::clear(F_cube);
+        gmm::clear(DeltaPi); //gmm::clear(F_cube);
         //gmm::clear(Dtt); gmm::clear(aux3);
         return true;
 }
